@@ -1,7 +1,8 @@
 // Hawton Arcade — motor principal: tela inicial, cutscene da fachada e exploração do mapa.
 (() => {
   'use strict';
-  const D = window.MAP_DATA;
+  const Wd = window.World;
+  const D = { width: Wd.W, height: Wd.H, spawn: Wd.spawn, rooms: Wd.rooms, lights: Wd.lights, interact: Wd.interact };
   const GW = 384, GH = 216;      // resolução interna do jogo
   const CW = 640, CH = 360;      // resolução interna da cutscene
   const FONT = '"Press Start 2P", monospace';
@@ -32,7 +33,7 @@
   // ---------- recursos ----------
   const img = {};
   let loaded = 0;
-  const toLoad = [['map', 'assets/map.jpg'], ['clean', 'assets/map_clean.jpg'], ['facade', 'assets/facade.jpg']];
+  const toLoad = [['map', 'assets/map.jpg'], ['facade', 'assets/facade.jpg']];
   toLoad.forEach(([k, src]) => {
     const im = new Image();
     im.onload = () => { loaded++; };
@@ -44,17 +45,9 @@
     .catch(() => {}).then(() => { fontReady = true; });
   setTimeout(() => { fontReady = true; }, 2500);
 
-  // ---------- máscara de colisão ----------
+  // ---------- colisão (mapa em tiles: src/world.js) ----------
   const MW = D.width, MH = D.height;
-  const mask = new Uint8Array(MW * MH);
-  const fillMask = (r, v) => {
-    const [x, y, w, h] = r;
-    for (let j = Math.max(0, y); j < Math.min(MH, y + h); j++)
-      for (let i = Math.max(0, x); i < Math.min(MW, x + w); i++) mask[j * MW + i] = v;
-  };
-  D.walk.forEach(r => fillMask(r, 1));
-  D.block.forEach(r => fillMask(r, 0));
-  const walkable = (x, y) => { x |= 0; y |= 0; return x >= 0 && y >= 0 && x < MW && y < MH && mask[y * MW + x] === 1; };
+  const walkable = Wd.walkable;
   const boxFree = (x, y) => {
     for (let yy = y - 4; yy <= y; yy += 2)
       for (let xx = x - 4; xx <= x + 4; xx += 2) if (!walkable(xx, yy)) return false;
@@ -65,49 +58,26 @@
     if (maskCanvas) return maskCanvas;
     maskCanvas = document.createElement('canvas'); maskCanvas.width = MW; maskCanvas.height = MH;
     const c = maskCanvas.getContext('2d'), id = c.createImageData(MW, MH);
-    for (let i = 0; i < mask.length; i++) {
-      if (mask[i]) { id.data[i * 4 + 1] = 255; id.data[i * 4 + 3] = 70; }
-      else { id.data[i * 4] = 255; id.data[i * 4 + 3] = 40; }
+    for (let i = 0; i < Wd.solid.length; i++) {
+      if (!Wd.solid[i]) { id.data[i * 4 + 1] = 255; id.data[i * 4 + 3] = 60; }
+      else { id.data[i * 4] = 255; id.data[i * 4 + 3] = 50; }
     }
     c.putImageData(id, 0, 0);
     return maskCanvas;
   }
 
-  // ---------- oclusão de luz ----------
-  // parede = fora de qualquer sala, ou faixa de 3px na borda de uma sala que não é andável (portas ficam abertas)
-  const occ = new Uint8Array(MW * MH).fill(1);
-  const edge = new Uint8Array(MW * MH);
-  for (const rm of D.rooms) {
-    const [x, y, w, h] = rm.r;
-    for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) {
-      const k = j * MW + i; occ[k] = 0;
-      if (i < x + 3 || i >= x + w - 3 || j < y + 3 || j >= y + h - 3) edge[k] = 1;
-    }
-  }
-  for (let k = 0; k < occ.length; k++) if (edge[k] && !mask[k]) occ[k] = 1;
-  // camada que escurece o lado de fora do prédio
-  const outsideC = document.createElement('canvas'); outsideC.width = MW; outsideC.height = MH;
-  {
-    const oc = outsideC.getContext('2d'), id = oc.createImageData(MW, MH);
-    for (let k = 0; k < occ.length; k++) {
-      let inside = false;
-      // só o "fora" de verdade (sem contar as bordas internas)
-      if (!occ[k] || edge[k]) inside = true;
-      if (!inside) { id.data[k * 4 + 3] = 255; }
-    }
-    oc.putImageData(id, 0, 0);
-  }
+  // ---------- oclusão de luz (paredes e portas fechadas) ----------
+  const outsideC = Wd.outsideC;
   function castCone(ox, oy, ang, len, half, n) {
     const pts = [];
     for (let i = 0; i < n; i++) {
       const a = ang - half + (2 * half * i) / (n - 1), dx = Math.cos(a), dy = Math.sin(a);
       let d = 3;
       while (d < len) {
-        const x = (ox + dx * d) | 0, y = (oy + dy * d) | 0;
-        if (x < 0 || y < 0 || x >= MW || y >= MH || occ[y * MW + x]) break;
+        if (Wd.occludes(ox + dx * d, oy + dy * d)) break;
         d += 2;
       }
-      d = Math.min(len, d + 4);
+      d = Math.min(len, d + 5);
       pts.push(ox + dx * d, oy + dy * d);
     }
     return pts;
@@ -124,7 +94,7 @@
   const surfaceOf = room => {
     if (!room) return 'carpet';
     const n = room.name;
-    if (/COZINHA|PORÃO$|\?\?\?|POWER|SERVICE/.test(n)) return 'tile';
+    if (/COZINHA|PORÃO$|\?\?\?|POWER|SERVICE|SEGURANÇA/.test(n)) return 'tile';
     if (/PARTY/.test(n)) return 'wood';
     if (/ESCADA/.test(n)) return 'metal';
     return 'carpet';
@@ -464,8 +434,15 @@
     t: 0, room: null, roomT: 0, amb: [26, 20, 44], power: 1, surge: rnd(25, 45), surgeSeq: null,
     msg: '', msgT: 0, prompt: null, fadeT: 0, tp: null, map: false, debug: false,
     creakT: rnd(6, 14), clankT: rnd(18, 35), blipT: rnd(2, 5), hbT: 0, flashFlick: 1, hintT: 0,
-    gen: false, genT: 0, powered: false, powerT: 0, ui: null, intro: false, lampSndT: 0
+    gen: false, genT: 0, powered: false, powerT: 0, ui: null, intro: false, lampSndT: 0, energy: 100
   };
+  // sala de segurança
+  const sec = {
+    seated: false, cams: false, cam: 0, camStatic: 0,
+    light: { W: false, E: false },
+    door: { W: Wd.doors.find(d => d.id === 'secW'), E: Wd.doors.find(d => d.id === 'secE') },
+  };
+  const CHAIR = [99, 90];
   const motes = [];
   const puffs = [];
 
@@ -480,7 +457,9 @@
     motes.length = 0;
     for (let i = 0; i < 140; i++) motes.push({ x: cam.x + rnd(0, GW), y: cam.y + rnd(0, GH), vx: rnd(-3, 3), vy: rnd(-2, 2), ph: Math.random() * 6 });
     if (touch.el) touch.el.classList.add('on');
-    game.gen = game.powered = false; game.ui = null; game.intro = false;
+    game.gen = game.powered = false; game.ui = null; game.intro = false; game.energy = 100;
+    sec.seated = sec.cams = false; sec.light.W = sec.light.E = false;
+    for (const d of Wd.doors) { d.open = d.type === 'arch' || d.type === 'security'; d.anim = d.open ? 1 : 0; }
     if (/[?&]lit\b/.test(location.search)) { game.gen = true; game.genT = -99; game.powered = true; game.powerT = -99; }
   }
 
@@ -497,16 +476,17 @@
 
     // mapa
     if (game.ui) updateUI(dt);
-    if (!game.ui && (consume('m') || consume('tab'))) { game.map = !game.map; Sfx.click(); }
+    if (!game.ui && !sec.seated && (consume('m') || consume('tab'))) { game.map = !game.map; Sfx.click(); }
     if (!game.intro && game.t > 2.6) { game.intro = true; showMsg('Está tudo apagado.'); }
     if (consume('k') || consume('`')) game.debug = !game.debug;
 
     // lanterna
-    if (!game.ui && consume('f')) { P.flash = !P.flash; Sfx.click(); }
+    if (!game.ui && !sec.seated && consume('f')) { P.flash = !P.flash; Sfx.click(); }
 
     // movimento
     let ix = 0, iy = 0;
-    if (!game.map && !game.tp && !game.ui) {
+    if (sec.seated && !game.ui) updateSeated(dt);
+    if (!game.map && !game.tp && !game.ui && !sec.seated) {
       if (keys.a || keys.arrowleft) ix -= 1;
       if (keys.d || keys.arrowright) ix += 1;
       if (keys.w || keys.arrowup) iy -= 1;
@@ -541,7 +521,7 @@
     } else { P.frame = 0; P.anim = 0; P.lastFrame = 0; }
 
     // mira da lanterna
-    const mouseActive = now - mouse.t < 2.5 && !isTouch;
+    const mouseActive = now - mouse.t < 2.5 && !isTouch && !sec.seated;
     let target = P.aim;
     if (mouseActive) {
       const wx = cam.x + mouse.x * GW, wy = cam.y + mouse.y * GH;
@@ -569,23 +549,28 @@
 
     // interação
     game.prompt = null;
-    if (!game.ui) for (const it of D.interact) {
-      if (inR(P.x, P.y - 2, it.r)) { game.prompt = it; break; }
-    }
-    if (game.prompt && consume('e')) {
-      const it = game.prompt;
-      if (it.id === 'exit') { Sfx.rattle(); cam.shake = 2; showMsg(it.msg); }
-      else if (it.id === 'gen') {
-        if (game.gen) showMsg('O gerador já está funcionando.');
-        else openGen();
-      } else if (it.id === 'panel') {
-        if (game.powered) showMsg('A energia já está ligada.');
-        else if (!game.gen) { Sfx.deny(); showMsg('Sem corrente. O gerador está parado.'); }
-        else openPanel();
-      }
-      else if (it.to) teleport(it.to, it.msg);
-    }
+    if (!game.ui && !sec.seated && !game.tp && !game.map) game.prompt = findPrompt();
+    if (game.prompt && consume('e')) game.prompt.run();
     consume('e');
+
+    // portas
+    for (const d of Wd.doors) {
+      const tgt = d.open ? 1 : 0;
+      if (d.anim !== tgt) {
+        const sp = d.type === 'security' ? 2.6 : 4.5;
+        d.anim = tgt > d.anim ? Math.min(1, d.anim + dt * sp) : Math.max(0, d.anim - dt * sp);
+      }
+    }
+    for (const o of Wd.cabinets) if (o.playT > 0) o.playT -= dt;
+
+    // consumo de energia
+    if (game.powered) {
+      const closed = (sec.door.W.open ? 0 : 1) + (sec.door.E.open ? 0 : 1);
+      const lit = (sec.light.W ? 1 : 0) + (sec.light.E ? 1 : 0);
+      game.usage = 1 + closed + lit + (sec.cams ? 1 : 0);
+      game.energy -= (0.05 + 0.11 * closed + 0.05 * lit + (sec.cams ? 0.05 : 0)) * dt;
+      if (game.energy <= 0) blackout();
+    }
 
     // teletransporte com fade
     if (game.tp) {
@@ -601,7 +586,7 @@
     }
 
     // câmera
-    const lookX = Math.cos(P.aim) * 16, lookY = Math.sin(P.aim) * 12;
+    const lookX = sec.seated ? 0 : Math.cos(P.aim) * 16, lookY = sec.seated ? -10 : Math.sin(P.aim) * 12;
     const tx = clamp(P.x + lookX - GW / 2, 0, MW - GW), ty = clamp(P.y - 8 + lookY - GH / 2, 0, MH - GH);
     const k = 1 - Math.exp(-dt * 4.5);
     cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
@@ -684,46 +669,51 @@
     ctx.restore();
   }
 
-  function drawGame() {
-    setRes(GW, GH);
-    const sx = (Math.random() - 0.5) * cam.shake, sy = (Math.random() - 0.5) * cam.shake;
-    const cx = Math.round(cam.x + sx), cy = Math.round(cam.y + sy);
+  function drawScene(cx, cy, o) {
+    const st = { powered: game.powered, gen: game.gen, camOn: sec.cams };
     const px = Math.round(P.x) - cx, py = Math.round(P.y) - cy;
     const hx = px + Math.cos(P.aim) * 4, hy = py - 9 + Math.sin(P.aim) * 3;
-    const flashOn = P.flash ? game.flashFlick : 0;
+    const flashOn = o.flash && P.flash ? game.flashFlick : 0;
 
     // mundo
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
     g.fillStyle = '#05040a'; g.fillRect(0, 0, GW, GH);
-    g.drawImage(img.clean, cx, cy, GW, GH, 0, 0, GW, GH);
+    g.drawImage(Wd.canvas, cx, cy, GW, GH, 0, 0, GW, GH);
+    Wd.drawDynamic(g, cx, cy, GW, GH, game.t, st);
 
-    // sombra + jogador
-    g.fillStyle = 'rgba(0,0,0,0.45)';
-    g.beginPath(); g.ellipse(px, py - 1, 6, 2.2, 0, 0, Math.PI * 2); g.fill();
-    const spr = Sprite.frames[P.dir][P.frame];
-    g.drawImage(spr, px - 7, py - 20);
-    // poeira dos passos
-    for (const p of puffs) { g.fillStyle = `rgba(160,150,180,${p.life})`; g.fillRect(Math.round(p.x - cx), Math.round(p.y - cy), 2, 1); }
+    // sombra + jogador + o que fica na frente dele
+    if (px > -20 && py > -20 && px < GW + 20 && py < GH + 30) {
+      g.fillStyle = 'rgba(0,0,0,0.45)';
+      g.beginPath(); g.ellipse(px, py - 1, 6, 2.2, 0, 0, Math.PI * 2); g.fill();
+      const spr = Sprite.frames[P.dir][P.frame];
+      g.drawImage(spr, px - 7, py - 20);
+      for (const p of puffs) { g.fillStyle = `rgba(160,150,180,${p.life})`; g.fillRect(Math.round(p.x - cx), Math.round(p.y - cy), 2, 1); }
+      Wd.drawFront(g, cx, cy, Math.round(P.x), Math.round(P.y), game.t, st);
+    }
 
     // ---- mapa de luz ----
     lg.globalCompositeOperation = 'source-over'; lg.globalAlpha = 1;
     const a = game.amb, pw = 0.35 + 0.65 * game.power;
-    lg.fillStyle = `rgb(${a[0] * pw | 0},${a[1] * pw | 0},${a[2] * pw | 0})`;
+    const ak = o.cam ? 2.1 : 1;
+    lg.fillStyle = `rgb(${a[0] * pw * ak | 0},${a[1] * pw * ak | 0},${a[2] * pw * ak | 0})`;
     lg.fillRect(0, 0, GW, GH);
     lg.globalCompositeOperation = 'lighter';
     for (const l of D.lights) {
       const lx = l.x - cx, ly = l.y - cy, R = l.r * 2.4;
-      if (lx < -R || ly < -R || lx > GW + R || ly > GH + R) continue;
+      if (l.i <= 0.01 || lx < -R || ly < -R || lx > GW + R || ly > GH + R) continue;
       lg.globalAlpha = l.i;
       if (l.clip) { lg.save(); lg.beginPath(); lg.rect(l.clip[0] - cx, l.clip[1] - cy, l.clip[2], l.clip[3]); lg.clip(); }
       lg.drawImage(glow(l.c), lx - R / 2, ly - R / 2, R, R);
       if (l.clip) lg.restore();
     }
-    // luz pessoal
-    lg.globalAlpha = 0.5;
-    lg.drawImage(glow('#ffe2b8'), px - 26, py - 36, 52, 52);
+    // telas de fliperama sendo jogadas
+    for (const c of Wd.cabinets) if (c.playT > 0) { lg.globalAlpha = 0.8; lg.drawImage(glow('#ffffff'), c.x + 8 - cx - 20, c.y + 10 - cy - 20, 40, 40); }
     let poly = null;
     const wox = hx + cx, woy = hy + cy;
+    if (!o.cam) {
+      lg.globalAlpha = 0.5;
+      lg.drawImage(glow('#ffe2b8'), px - 26, py - 36, 52, 52);
+    }
     if (flashOn > 0) {
       poly = castCone(wox, woy, P.aim, 170, 0.48, 96);
       lg.save(); clipPoly(lg, wox, woy, poly, cx, cy);
@@ -733,7 +723,6 @@
       lg.drawImage(glow('#fff0d0'), fx - 34, fy - 34, 68, 68);
       lg.restore();
     }
-    // lado de fora fica no breu
     lg.globalCompositeOperation = 'source-over';
     lg.globalAlpha = 0.82;
     lg.drawImage(outsideC, cx, cy, GW, GH, 0, 0, GW, GH);
@@ -741,11 +730,11 @@
     g.globalCompositeOperation = 'multiply';
     g.drawImage(lightC, 0, 0);
 
-    // ---- brilho aditivo (bloom / névoa de luz) ----
+    // ---- brilho aditivo ----
     g.globalCompositeOperation = 'lighter';
     for (const l of D.lights) {
       const lx = l.x - cx, ly = l.y - cy, R = l.r * 1.3;
-      if (lx < -R || ly < -R || lx > GW + R || ly > GH + R) continue;
+      if (l.i <= 0.01 || lx < -R || ly < -R || lx > GW + R || ly > GH + R) continue;
       g.globalAlpha = 0.2 * l.i;
       g.drawImage(glow(l.c), lx - R / 2, ly - R / 2, R, R);
     }
@@ -756,8 +745,7 @@
       g.globalAlpha = 0.9 * flashOn; g.fillStyle = '#fff6d8';
       g.fillRect(Math.round(hx + Math.cos(P.aim) * 3), Math.round(hy + Math.sin(P.aim) * 2), 1, 1);
     }
-    // poeira suspensa iluminada
-    for (const m of motes) {
+    if (!o.cam) for (const m of motes) {
       const mx = m.x - cx, my = m.y - cy;
       let b = 0.05;
       if (flashOn > 0) {
@@ -771,6 +759,14 @@
       g.fillRect(Math.round(mx), Math.round(my), 1, 1);
     }
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+
+  function drawGame() {
+    setRes(GW, GH);
+    if (sec.seated && sec.cams) { drawCams(); return; }
+    const sx = (Math.random() - 0.5) * cam.shake, sy = (Math.random() - 0.5) * cam.shake;
+    const cx = Math.round(cam.x + sx), cy = Math.round(cam.y + sy);
+    drawScene(cx, cy, { flash: !sec.seated || true });
 
     if (game.debug) {
       g.globalAlpha = 1;
@@ -782,10 +778,10 @@
     }
 
     drawHUD();
+    if (sec.seated) drawSeatedHUD();
     if (game.map) drawMap();
     if (game.ui) drawUI();
 
-    // pós
     const fadeIn = clamp(game.t / 2.2, 0, 1);
     let tpFade = 1;
     if (game.tp) tpFade = game.tp.t < 0.7 ? 1 - game.tp.t / 0.7 : clamp((game.tp.t - 0.7) / 0.8, 0, 1);
@@ -821,7 +817,7 @@
       if (isTouch) text('ANALOGICO: ANDAR  F: LANTERNA  E: USAR', GW / 2, GH - 14, '#a89cc0', 'center', al);
       else {
         text('WASD ANDAR  SHIFT CORRER  F LANTERNA', GW / 2, GH - 24, '#a89cc0', 'center', al);
-        text('E INTERAGIR  M MAPA', GW / 2, GH - 13, '#a89cc0', 'center', al);
+        text('E PORTAS / INTERAGIR  M MAPA', GW / 2, GH - 13, '#a89cc0', 'center', al);
       }
     }
     // prompt
@@ -833,6 +829,7 @@
       else if (game.t - game.powerT < 6) obj = '> ENERGIA OK';
       if (obj) text(obj, GW - 10, 22, game.powered ? '#8dff7a' : '#c8b8e8', 'right', 0.55 + 0.15 * Math.sin(game.t * 2));
     }
+    if (game.powered && !sec.seated) energyHUD(GW - 10, game.t - game.powerT < 6 ? 34 : 22, 'right');
     if (game.prompt && !game.tp && !game.ui) {
       const pulse = 0.65 + 0.35 * Math.sin(game.t * 6);
       text(isTouch ? game.prompt.label.replace('[E]', '(E)') : game.prompt.label, GW / 2, GH - 46, '#ffe9a8', 'center', pulse);
@@ -874,7 +871,7 @@
   // =====================================================================
   //  ENERGIA — gerador (Power RM 2) e painel de distribuição (Power RM 1)
   // =====================================================================
-  const GEN_POS = [1205, 236], PANEL_POS = [1012, 280];
+  const GEN_POS = [1220, 200], PANEL_POS = [1003, 192];
   const N = 1, E = 2, S = 4, Wb = 8;
   const DIRS = [[N, 0, -1, S], [E, 1, 0, Wb], [S, 0, 1, N], [Wb, -1, 0, E]];
   const rotM = m => ((m << 1) | (m >> 3)) & 15;
@@ -883,6 +880,7 @@
 
   function circuitLevel(l) {
     if (l.g === 'emg') return 1;
+    if (l.g === 'secW' || l.g === 'secE') return game.powered && sec.light[l.g.slice(3)] ? (Math.random() < 0.04 ? 0.4 : 1) : 0;
     if (l.g === 'gen') {
       if (!game.gen) return 0;
       const t = game.t - game.genT;
@@ -954,7 +952,7 @@
   }
 
   function startPowerOn() {
-    game.powered = true; game.powerT = game.t;
+    game.powered = true; game.powerT = game.t; game.energy = 100;
     for (const l of D.lights) if (l.g === 'main') { l.onAt = 0.5 + Math.hypot(l.x - PANEL_POS[0], l.y - PANEL_POS[1]) / 420 + rnd(0, 0.35); l.lit = false; }
     Sfx.clunk(); setTimeout(() => Sfx.powerUp(), 350);
     cam.shake = 3; post.glitch = 1;
@@ -1145,6 +1143,217 @@
       text('LEVE A ENERGIA ATE AS 3 SAIDAS', GW / 2, 158, '#c8b8e8', 'center');
       text(isTouch ? 'TOQUE NAS PEÇAS PARA GIRAR' : 'CLIQUE OU SETAS + E PARA GIRAR', GW / 2, 170, '#7a6f8a', 'center');
     }
+  }
+
+  // =====================================================================
+  //  INTERAÇÕES — portas, fliperamas, pontos fixos
+  // =====================================================================
+  function playerInDoor(d) {
+    const bot = d.y + d.h + (d.horiz ? 7 : 0);
+    return P.x + 4 > d.x && P.x - 4 < d.x + d.w && P.y > d.y && P.y - 5 < bot;
+  }
+  function findPrompt() {
+    for (const it of D.interact) {
+      if (!inR(P.x, P.y - 2, it.r)) continue;
+      return { label: it.label, run: () => runInteract(it) };
+    }
+    // fliperama: em frente à tela
+    for (const c of Wd.cabinets) {
+      if (!c.screen) continue;
+      if (Math.abs(P.x - (c.x + 8)) < 8 && P.y - (c.y + 22) >= 0 && P.y - (c.y + 22) < 12) {
+        return { label: '[E] jogar', run: () => playCabinet(c) };
+      }
+    }
+    // portas
+    let best = null, bd = 1e9;
+    for (const d of Wd.doors) {
+      if (d.type === 'arch') continue;
+      let dist;
+      if (d.horiz) { if (Math.abs(P.x - d.cx) > d.w / 2 + 3) continue; dist = Math.abs((P.y - 3) - d.cy); if (dist > 17) continue; }
+      else { if (Math.abs((P.y - 3) - d.cy) > d.h / 2 + 3) continue; dist = Math.abs(P.x - d.cx); if (dist > 15) continue; }
+      if (dist < bd) { bd = dist; best = d; }
+    }
+    if (best) {
+      const d = best;
+      if (d.type === 'exit') return { label: '[E] porta', run: () => { Sfx.rattle(); cam.shake = 2; showMsg(d.msg); } };
+      if (d.type === 'security') return d.open ? null : { label: '[E] porta de segurança', run: () => { Sfx.deny(); showMsg('Só abre pela mesa de segurança.'); } };
+      return {
+        label: d.open ? '[E] fechar porta' : '[E] abrir porta',
+        run: () => {
+          if (d.open) { if (playerInDoor(d)) return; d.open = false; Sfx.doorClose(); }
+          else { d.open = true; Sfx.doorOpen(); }
+        }
+      };
+    }
+    return null;
+  }
+  function runInteract(it) {
+    if (it.id === 'gen') { if (game.gen) showMsg('O gerador já está funcionando.'); else openGen(); }
+    else if (it.id === 'panel') {
+      if (game.powered) showMsg('A energia já está ligada.');
+      else if (!game.gen) { Sfx.deny(); showMsg('Sem corrente. O gerador está parado.'); }
+      else openPanel();
+    } else if (it.id === 'desk') sitDown();
+    else if (it.to) teleport(it.to, it.msg);
+  }
+  const ARCADE_MSG = ['GAME OVER', 'INSERT COIN', 'HIGH SCORE: ???', 'PLAYER 1 READY', 'CONTINUE? 9...', 'TOP SCORE: H.A.W.'];
+  function playCabinet(c) {
+    if (!game.powered) { Sfx.deny(); showMsg('Está desligado.'); return; }
+    c.playT = 1.4; Sfx.coin(); setTimeout(() => Sfx.blip(3), 180);
+    showMsg(ARCADE_MSG[(Math.random() * ARCADE_MSG.length) | 0]);
+  }
+
+  // =====================================================================
+  //  SALA DE SEGURANÇA — portas, luzes e câmeras
+  // =====================================================================
+  function sitDown() {
+    sec.seated = true; sec.cams = false;
+    P.x = CHAIR[0]; P.y = CHAIR[1]; P.dir = 'up'; P.frame = 0; P.aim = -Math.PI / 2;
+    Sfx.click();
+    if (!game.powered) showMsg('Sem energia. Nada responde.');
+  }
+  function standUp() { sec.seated = false; sec.cams = false; Sfx.click(); }
+  function toggleSecDoor(k) {
+    if (!game.powered) { Sfx.deny(); showMsg('Sem energia.'); return; }
+    const d = sec.door[k]; d.open = !d.open; Sfx.secDoor(!d.open); cam.shake = 1.5;
+  }
+  function toggleSecLight(k) {
+    if (!game.powered) { Sfx.deny(); showMsg('Sem energia.'); return; }
+    sec.light[k] = !sec.light[k]; Sfx.lightToggle(sec.light[k]);
+  }
+  function openCams() {
+    if (!game.powered) { Sfx.deny(); showMsg('Sem energia.'); return; }
+    sec.cams = true; sec.camStatic = 0.35; Sfx.camSwitch();
+  }
+  // botões da barra inferior (mouse/toque)
+  const SEAT_BTNS = [
+    { k: 'doorW', label: 'PORTA O', key: 'A' }, { k: 'lightW', label: 'LUZ O', key: 'Q' },
+    { k: 'cams', label: 'CAMERAS', key: 'S' },
+    { k: 'lightE', label: 'LUZ L', key: 'E' }, { k: 'doorE', label: 'PORTA L', key: 'D' },
+  ];
+  const btnRect = i => [8 + i * 74, GH - 26, 70, 18];
+  function seatAction(k) {
+    if (k === 'doorW') toggleSecDoor('W'); else if (k === 'doorE') toggleSecDoor('E');
+    else if (k === 'lightW') toggleSecLight('W'); else if (k === 'lightE') toggleSecLight('E');
+    else if (k === 'cams') openCams();
+  }
+  function updateSeated(dt) {
+    sec.camStatic = Math.max(0, sec.camStatic - dt);
+    if (sec.cams) { updateCams(); return; }
+    if (consume('escape') || consume('w') || consume('arrowup')) { standUp(); return; }
+    if (consume('a') || consume('arrowleft')) seatAction('doorW');
+    if (consume('d') || consume('arrowright')) seatAction('doorE');
+    if (consume('q')) seatAction('lightW');
+    if (consume('e')) seatAction('lightE');
+    if (consume('s') || consume(' ') || consume('c') || consume('arrowdown')) seatAction('cams');
+    if (consume('click')) {
+      const [mx, my] = uiMouse();
+      SEAT_BTNS.forEach((b, i) => { const r = btnRect(i); if (mx >= r[0] && my >= r[1] && mx < r[0] + r[2] && my < r[1] + r[3]) seatAction(b.k); });
+      if (mx > GW - 70 && my < 22) standUp();
+    }
+  }
+  // painel do mapa das câmeras (planta enviada)
+  const CMAP = { x: GW - 160, y: GH - 92, w: 154, h: Math.round(154 * 768 / 1376) };
+  const camBtn = c => [Math.round(CMAP.x + c.x * CMAP.w / MW) - 5, Math.round(CMAP.y + c.y * CMAP.h / MH) - 3, 11, 7];
+  function setCam(i) { if (i === sec.cam) return; sec.cam = (i + Wd.cameras.length) % Wd.cameras.length; sec.camStatic = 0.3; Sfx.camSwitch(); }
+  function updateCams() {
+    if (consume('escape') || consume('s') || consume(' ') || consume('arrowdown') || consume('c')) { sec.cams = false; Sfx.camSwitch(); return; }
+    if (!game.powered) { sec.cams = false; return; }
+    for (let n = 1; n <= 9; n++) if (consume(String(n))) setCam(n - 1);
+    if (consume('0')) setCam(9);
+    if (consume('arrowleft') || consume('a')) setCam(sec.cam - 1);
+    if (consume('arrowright') || consume('d')) setCam(sec.cam + 1);
+    if (consume('click')) {
+      const [mx, my] = uiMouse();
+      Wd.cameras.forEach((c, i) => { const r = camBtn(c); if (mx >= r[0] - 1 && my >= r[1] - 1 && mx < r[0] + r[2] + 1 && my < r[1] + r[3] + 1) setCam(i); });
+      if (mx < 60 && my > GH - 22) { sec.cams = false; Sfx.camSwitch(); }
+    }
+  }
+
+  // dígitos 3x5 para os botões do mapa
+  const DIG = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001', '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111'];
+  function tinyNum(n, x, y, col) {
+    g.fillStyle = col;
+    String(n).split('').forEach((ch, k) => { const p = DIG[+ch]; for (let i = 0; i < 15; i++) if (p[i] === '1') g.fillRect(x + k * 4 + (i % 3), y + ((i / 3) | 0), 1, 1); });
+  }
+
+  function energyHUD(x, y, align) {
+    const e = Math.max(0, Math.ceil(game.energy));
+    const col = e > 30 ? '#8dff7a' : e > 12 ? '#ffd24a' : '#ff5a4a';
+    text(`ENERGIA ${e}%`, x, y, col, align, 0.85);
+    const n = game.usage || 1, bx = align === 'right' ? x - 5 * 6 : x;
+    for (let i = 0; i < 5; i++) { g.fillStyle = i < n ? (i < 2 ? '#8dff7a' : i < 4 ? '#ffd24a' : '#ff5a4a') : '#2a2434'; g.fillRect(bx + i * 6, y + 11, 4, 4); }
+  }
+
+  function drawSeatedHUD() {
+    text('MESA DE SEGURANÇA', 10, 10, '#f0e2c0');
+    if (game.powered) energyHUD(10, 22, 'left');
+    else text('SEM ENERGIA', 10, 22, '#ff5a4a', 'left', 0.6 + 0.4 * Math.sin(game.t * 5));
+    text('ESC', GW - 10, 10, '#7a6f8a', 'right');
+    SEAT_BTNS.forEach((b, i) => {
+      const [x, y, w, h] = btnRect(i);
+      const on = b.k === 'doorW' ? !sec.door.W.open : b.k === 'doorE' ? !sec.door.E.open : b.k === 'lightW' ? sec.light.W : b.k === 'lightE' ? sec.light.E : false;
+      g.fillStyle = '#0b0910'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      g.fillStyle = on ? (b.k.startsWith('door') ? '#7a2020' : '#6a6020') : '#211d29'; g.fillRect(x, y, w, h);
+      g.fillStyle = on ? (b.k.startsWith('door') ? '#ff4040' : '#ffe060') : '#3a3346'; g.fillRect(x + 3, y + 7, 4, 4);
+      if (!game.powered) g.fillStyle = '#2a2434', g.fillRect(x + 3, y + 7, 4, 4);
+      text(b.label, x + w / 2 + 4, y + 6, game.powered ? '#e8dcff' : '#5a5068', 'center');
+      if (!isTouch) text(b.key, x + w - 2, y - 9, '#6a6078', 'right', 0.8);
+    });
+  }
+
+  function drawCams() {
+    const c = Wd.cameras[sec.cam];
+    const cx = Math.round(clamp(c.x - GW / 2, 0, MW - GW)), cy = Math.round(clamp(c.y - GH / 2, 0, MH - GH));
+    if (game.powered) {
+      drawScene(cx, cy, { flash: false, cam: true });
+      // filtro de câmera de segurança
+      g.globalCompositeOperation = 'saturation'; g.globalAlpha = 0.8; g.fillStyle = '#808080'; g.fillRect(0, 0, GW, GH);
+      g.globalCompositeOperation = 'multiply'; g.globalAlpha = 1; g.fillStyle = '#c8f4d4'; g.fillRect(0, 0, GW, GH);
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.06; g.fillStyle = '#4aff8a'; g.fillRect(0, 0, GW, GH);
+      g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`; g.fillRect((Math.random() * GW) | 0, (Math.random() * GH) | 0, 1, 1); }
+      const band = (game.t * 50) % (GH + 20) - 10;
+      g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(0, band, GW, 5);
+    } else { g.fillStyle = '#000'; g.fillRect(0, 0, GW, GH); }
+    // estática ao trocar
+    const stc = game.powered ? sec.camStatic / 0.3 : 1;
+    if (stc > 0) {
+      for (let y = 0; y < GH; y += 2) { const v = Math.random() * 200 | 0; g.fillStyle = `rgba(${v},${v},${v},${Math.min(1, stc)})`; g.fillRect(0, y, GW, 2); }
+    }
+    // textos
+    text(`CAM ${String(c.n).padStart(2, '0')}`, 10, 10, '#e8ffe8');
+    text(c.name, 10, 22, '#b8e8c8');
+    if (Math.floor(game.t * 2) % 2) { g.fillStyle = '#ff3030'; g.fillRect(GW - 52, 12, 5, 5); }
+    text('REC', GW - 10, 11, '#ffd0d0', 'right');
+    const secs = Math.floor(game.t);
+    text(`00:${String((secs / 60 | 0) % 60).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`, GW - 10, 23, '#b8e8c8', 'right');
+    if (!game.powered) text('SEM SINAL', GW / 2, GH / 2 - 4, '#e8e8e8', 'center');
+    // mapa (planta) com os botões das câmeras
+    const M = CMAP;
+    g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(M.x - 3, M.y - 3, M.w + 6, M.h + 6);
+    g.imageSmoothingEnabled = true; g.globalAlpha = 0.8; g.drawImage(img.map, M.x, M.y, M.w, M.h); g.globalAlpha = 1; g.imageSmoothingEnabled = false;
+    g.strokeStyle = '#4aff8a'; g.lineWidth = 1; g.strokeRect(M.x - 2.5, M.y - 2.5, M.w + 5, M.h + 5);
+    // jogador (você)
+    g.fillStyle = '#ffffff'; g.fillRect(Math.round(M.x + P.x * M.w / MW) - 1, Math.round(M.y + P.y * M.h / MH) - 2, 3, 3);
+    Wd.cameras.forEach((cm, i) => {
+      const [x, y, w, h] = camBtn(cm), sel = i === sec.cam;
+      g.fillStyle = '#000'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      g.fillStyle = sel ? (Math.floor(game.t * 4) % 2 ? '#4aff8a' : '#2a9a5a') : '#2a3a34'; g.fillRect(x, y, w, h);
+      tinyNum(cm.n, x + (cm.n > 9 ? 2 : 4), y + 1, sel ? '#002010' : '#c8ffd8');
+    });
+    text(isTouch ? 'SAIR' : 'ESC SAIR', 10, GH - 14, '#7a8a7f');
+    if (!isTouch) text('1-9 / SETAS', 10, GH - 26, '#5a6a5f');
+    post.fade = 1;
+  }
+
+  function blackout() {
+    game.energy = 0; game.powered = false; game.gen = false;
+    Sfx.powerDown(); Sfx.engineStop();
+    sec.door.W.open = sec.door.E.open = true; sec.light.W = sec.light.E = false; sec.cams = false;
+    for (const l of D.lights) l.lit = false;
+    post.glitch = 1; cam.shake = 3;
+    showMsg('A energia acabou.');
   }
 
   // =====================================================================

@@ -311,8 +311,43 @@ window.Sfx = (() => {
   function lampOn() { burst('white', 'highpass', 5000, 1, 0.08, 0.001, 0.03, 0.4); tone('sine', 240, 240, 0.12, 0.03, 0.3, 0.03); }
   function success() { [0, 4, 7, 12].forEach((st, i) => tone('square', 523 * Math.pow(2, st / 12), 523 * Math.pow(2, st / 12), 0.22, 0.06, 0.6, i * 0.08)); }
 
+  function doorOpen() {
+    const r = burst('white', 'bandpass', 900, 3, 0.12, 0.05, 0.45, 0.6);
+    if (r) { r.f.frequency.setValueAtTime(700, r.t); r.f.frequency.linearRampToValueAtTime(1300, r.t + 0.4); }
+    tone('sawtooth', 190, 260, 0.35, 0.015, 0.6, 0.02);
+    burst('white', 'bandpass', 2500, 4, 0.15, 0.001, 0.04, 0.2);
+  }
+  function doorClose() {
+    burst('brown', 'lowpass', 300, 1, 1.0, 0.003, 0.25, 0.7);
+    burst('white', 'bandpass', 1800, 3, 0.18, 0.001, 0.05, 0.3);
+  }
+  function secDoor(closing) {
+    const r = burst('white', 'bandpass', 600, 2, 0.25, 0.05, 0.5, 0.4);
+    if (r) { r.f.frequency.setValueAtTime(closing ? 900 : 400, r.t); r.f.frequency.linearRampToValueAtTime(closing ? 300 : 900, r.t + 0.45); }
+    tone('square', 70, 50, 0.4, 0.05, 0.4);
+    setTimeout(() => { burst('brown', 'lowpass', 400, 1, 1.4, 0.003, 0.5, 0.9); tone('square', 60, 35, 0.3, 0.15, 0.7); }, 380);
+  }
+  function lightToggle(on) {
+    burst('white', 'highpass', 3000, 1, 0.25, 0.001, 0.02, 0.1);
+    if (on) tone('sawtooth', 120, 120, 0.4, 0.02, 0.3, 0.02);
+  }
+  function camSwitch() { burst('white', 'bandpass', 3000, 0.6, 0.18, 0.005, 0.18, 0.05); }
+  function coin() { tone('square', 988, 988, 0.06, 0.05, 0.4); tone('square', 1319, 1319, 0.25, 0.05, 0.5, 0.07); }
+  function powerDown() {
+    tone('sine', 420, 30, 2.2, 0.3, 0.6); tone('sawtooth', 120, 25, 2.0, 0.06, 0.6);
+    burst('brown', 'lowpass', 300, 1, 1.0, 0.01, 1.2, 0.8);
+    setTimeout(() => zap(), 150);
+  }
+  function engineStop() {
+    const l = loops.engine; if (!l) return;
+    const t = ac.currentTime;
+    l.oscs.slice(0, 2).forEach(o => { o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(o.frequency.value, t); o.frequency.exponentialRampToValueAtTime(8, t + 2); });
+    stopLoop('engine', 2.2);
+  }
+
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
   return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume,
-    pull, engineStart, setEngine, clunk, powerUp, tick, ding, deny, lampOn, success, get ready() { return ready; } };
+    pull, engineStart, setEngine, clunk, powerUp, tick, ding, deny, lampOn, success,
+    doorOpen, doorClose, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
 })();

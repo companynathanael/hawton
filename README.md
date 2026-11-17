@@ -3,6 +3,30 @@
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
 Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
 
+## Mapa
+
+O mapa jogável é feito em tiles (8px) e desenhado em pixel art pelo próprio código (`src/world.js`). Ele segue o layout da planta original, com paredes de verdade calculadas a partir das salas, portas, fliperamas e mobília com colisão.
+
+A planta original (`assets/map.jpg`) agora é o mapa das câmeras de segurança e do mapa da tecla M.
+
+- **Portas:** E abre e fecha. Porta fechada bloqueia a passagem e a luz da lanterna. As passagens com neon ficam sempre abertas. As portas que dão para fora estão trancadas.
+- **Fliperamas:** mais de 80 máquinas com telas animadas quando há energia. E em frente a uma delas joga uma ficha.
+
+## Sala de segurança
+
+Sente na mesa (E). Sentado:
+
+| Tecla | Ação |
+|---|---|
+| A / D | fechar ou abrir a porta oeste / leste (portas de aço) |
+| Q / E | acender a luz do corredor oeste / leste |
+| S | câmeras |
+| Esc | levantar |
+
+Nas câmeras: 1–9 ou setas trocam a câmera, e dá para clicar nos números da planta. Esc sai.
+
+Tudo isso só funciona com energia, e cada coisa ligada gasta mais (barrinhas de uso). Se a energia chegar a 0%, o prédio apaga, as portas de aço abrem e é preciso religar o gerador e o painel.
+
 ## Puzzle da energia
 
 O prédio começa sem energia, só com luzes de emergência e a lanterna.
@@ -30,7 +54,7 @@ Depois abra http://localhost:8000
 | Shift | correr |
 | Mouse | apontar a lanterna |
 | F | liga/desliga lanterna |
-| E | interagir / girar peça / puxar o gerador |
+| E | abrir/fechar porta, interagir, girar peça, puxar o gerador |
 | Esc | fechar painel |
 | M ou Tab | mapa |
 | Enter / Esc | pular a cutscene |
@@ -52,12 +76,11 @@ Atalhos de teste: `?play` vai direto pro jogo, `?cut` vai direto pra cutscene, `
 
 - `index.html` — página e controles de toque
 - `src/game.js` — tela inicial, cutscene, jogador, câmera, luz, HUD
-- `src/mapdata.js` — colisão (`walk`/`block`), salas, luzes e pontos de interação, em pixels da planta
+- `src/world.js` — mapa em tiles: salas, paredes, portas, mobília, luzes, câmeras e colisão
 - `src/post.js` — shader CRT
 - `src/audio.js` — sons sintetizados
 - `src/sprite.js` — sprite do jogador desenhado em código
-- `assets/map.jpg` — planta original (usada no mapa da tecla M)
-- `assets/map_clean.jpg` — planta sem os rótulos (usada no jogo), gerada por `tools/clean_map.py`
+- `assets/map.jpg` — planta original (mapa das câmeras e da tecla M)
 - `assets/facade.jpg` — fachada da cutscene
 
-Para ajustar colisão, edite os retângulos em `src/mapdata.js` e aperte **K** no jogo para conferir.
+Para mudar o mapa, edite as listas `ROOMS`, `DOORS` e a mobília em `src/world.js`; a tecla **K** mostra a colisão no jogo.
