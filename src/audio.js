@@ -243,7 +243,76 @@ window.Sfx = (() => {
     return oscs;
   }
 
+  // ---------- energia ----------
+  function tone(type, f0, f1, dur, peak, wet = 0.3, delay = 0) {
+    if (!ready) return;
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator(); o.type = type;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain(); o.connect(g); g.connect(master);
+    if (wet) { const w = ac.createGain(); w.gain.value = wet; g.connect(w); w.connect(verbIn); }
+    env(g, t, 0.005, peak, dur); o.start(t); o.stop(t + dur + 0.05);
+  }
+
+  // puxada da corda do gerador
+  function pull(ok) {
+    const r = burst('white', 'bandpass', 1400, 2, 0.35, 0.01, 0.35, 0.3);
+    if (r) { r.f.frequency.setValueAtTime(1600, r.t); r.f.frequency.exponentialRampToValueAtTime(260, r.t + 0.35); }
+    if (ok) {
+      tone('sawtooth', 70, 32, 0.6, 0.2, 0.4, 0.15);
+      setTimeout(() => burst('brown', 'lowpass', 220, 1, 0.8, 0.01, 0.4, 0.4), 160);
+    } else {
+      [0.18, 0.3, 0.38].forEach((d, i) => tone('square', 50 - i * 6, 30, 0.08, 0.08, 0.2, d));
+    }
+  }
+
+  function engineStart() {
+    if (!ready || loops.engine) return;
+    const t = ac.currentTime;
+    const g = ac.createGain(); g.gain.value = 0;
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260;
+    const o1 = ac.createOscillator(); o1.type = 'sawtooth';
+    const o2 = ac.createOscillator(); o2.type = 'square';
+    o1.frequency.setValueAtTime(18, t); o1.frequency.exponentialRampToValueAtTime(38, t + 1.6);
+    o2.frequency.setValueAtTime(36, t); o2.frequency.exponentialRampToValueAtTime(76, t + 1.6);
+    const g2 = ac.createGain(); g2.gain.value = 0.35;
+    o1.connect(f); o2.connect(g2); g2.connect(f);
+    const am = ac.createGain(); am.gain.value = 0.7;
+    const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 9.5; lg.gain.value = 0.3;
+    lfo.connect(lg); lg.connect(am.gain);
+    f.connect(am); am.connect(g); g.connect(master);
+    const n = src(bufs.brown), nf = ac.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 320;
+    const ng = ac.createGain(); ng.gain.value = 0.5; n.connect(nf); nf.connect(ng); ng.connect(g);
+    [o1, o2, lfo].forEach(o => o.start(t)); n.start(t);
+    g.gain.linearRampToValueAtTime(0.16, t + 1.2);
+    loops.engine = { g, s: n, oscs: [o1, o2, lfo] };
+    burst('brown', 'lowpass', 300, 1, 1, 0.01, 1.2, 0.5);
+  }
+  function setEngine(v) { if (loops.engine) loops.engine.g.gain.setTargetAtTime(0.16 * v, ac.currentTime, 0.2); }
+
+  function clunk() {
+    burst('brown', 'lowpass', 500, 1, 1.4, 0.005, 0.5, 0.9);
+    tone('square', 90, 40, 0.25, 0.18, 0.6);
+    burst('white', 'bandpass', 2500, 4, 0.3, 0.001, 0.05, 0.4);
+  }
+
+  function powerUp() {
+    if (!ready) return;
+    tone('sine', 50, 420, 1.4, 0.25, 0.5);
+    tone('sawtooth', 60, 120, 1.6, 0.05, 0.6);
+    // acorde de boot dos fliperamas
+    [0, 4, 7, 12, 16].forEach((st, i) => tone('square', 262 * Math.pow(2, st / 12), 262 * Math.pow(2, st / 12), 0.35, 0.05, 1, 1.2 + i * 0.09));
+    setTimeout(() => zap(), 900);
+  }
+
+  function tick() { burst('white', 'bandpass', 3200, 5, 0.25, 0.001, 0.04, 0.15); tone('square', 900, 700, 0.03, 0.03, 0); }
+  function ding(n = 0) { tone('square', 660 * Math.pow(2, (n * 4) / 12), 660 * Math.pow(2, (n * 4) / 12), 0.18, 0.06, 0.5); }
+  function deny() { tone('square', 110, 100, 0.25, 0.08, 0.2); tone('square', 104, 96, 0.25, 0.06, 0.2, 0.05); }
+  function lampOn() { burst('white', 'highpass', 5000, 1, 0.08, 0.001, 0.03, 0.4); tone('sine', 240, 240, 0.12, 0.03, 0.3, 0.03); }
+  function success() { [0, 4, 7, 12].forEach((st, i) => tone('square', 523 * Math.pow(2, st / 12), 523 * Math.pow(2, st / 12), 0.22, 0.06, 0.6, i * 0.08)); }
+
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume, get ready() { return ready; } };
+  return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume,
+    pull, engineStart, setEngine, clunk, powerUp, tick, ding, deny, lampOn, success, get ready() { return ready; } };
 })();

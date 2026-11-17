@@ -1,7 +1,16 @@
 # Hawton Arcade
 
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
-Por enquanto: tela inicial → cutscene da fachada → exploração livre do mapa. Sem história e sem animatrônicos.
+Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
+
+## Puzzle da energia
+
+O prédio começa sem energia, só com luzes de emergência e a lanterna.
+
+1. **Gerador (Power RM 2):** aperte E (ou clique) quando o ponteiro estiver na zona verde. São 3 acertos; cada erro tira um. A zona fica menor e o ponteiro mais rápido a cada acerto.
+2. **Painel de distribuição (Power RM 1):** gire as peças de fio até a energia do gerador chegar às 3 saídas (Arcades, Cozinha, Salões). O tabuleiro é gerado aleatoriamente a cada vez.
+
+Com o painel resolvido, as luzes acendem em onda a partir da sala de força, os fliperamas voltam a tocar e as quedas de energia passam a acontecer. Sem o gerador, as luzes das salas de força ficam apagadas.
 
 ## Como rodar
 
@@ -21,14 +30,15 @@ Depois abra http://localhost:8000
 | Shift | correr |
 | Mouse | apontar a lanterna |
 | F | liga/desliga lanterna |
-| E | interagir |
+| E | interagir / girar peça / puxar o gerador |
+| Esc | fechar painel |
 | M ou Tab | mapa |
 | Enter / Esc | pular a cutscene |
 | K | mostrar colisão (depuração) |
 
 No celular aparecem um analógico e botões na tela.
 
-Atalhos de teste: `?play` vai direto pro jogo, `?cut` vai direto pra cutscene.
+Atalhos de teste: `?play` vai direto pro jogo, `?cut` vai direto pra cutscene, `?play&lit` começa com a energia ligada.
 
 ## Efeitos
 

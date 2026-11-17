@@ -150,6 +150,14 @@
     const rm = D.rooms.find(r => inR(l.x, l.y, r.r));
     l.clip = rm ? [rm.r[0] - 2, rm.r[1] - 2, rm.r[2] + 4, rm.r[3] + 4] : null;
   });
+  // circuitos: emg = emergência (sempre acesa), gen = gerador, main = rede principal
+  D.lights.forEach(l => {
+    if (!l.g) {
+      const rm = D.rooms.find(r => inR(l.x, l.y, r.r));
+      l.g = l.c === '#ff3030' || (rm && rm.name === '???') ? 'emg' : rm && /POWER|SERVICE/.test(rm.name) ? 'gen' : 'main';
+    }
+    l.onAt = 0; l.lit = false;
+  });
   D.lights.forEach(l => { l.off = 0; l.ph = Math.random() * 100; l.i = 1; l.hum = /^#[c-e]0[d-f]0/.test(l.c) || l.c === '#d0f0ff'; });
 
   // ---------- entrada ----------
@@ -169,7 +177,16 @@
     const cv = Post.canvas, r = cv.getBoundingClientRect();
     mouse.x = (e.clientX - r.left) / r.width; mouse.y = (e.clientY - r.top) / r.height; mouse.t = now;
   });
-  addEventListener('mousedown', () => { pressed.click = true; anyInput(); });
+  addEventListener('pointerdown', e => {
+    const cv = Post.canvas;
+    if (e.target === cv || e.target === document.body) {
+      const r = cv.getBoundingClientRect();
+      mouse.x = (e.clientX - r.left) / r.width; mouse.y = (e.clientY - r.top) / r.height;
+      if (e.pointerType === 'mouse') mouse.t = now;
+      pressed.click = true;
+    }
+    anyInput();
+  });
   const consume = k => { const v = pressed[k]; pressed[k] = false; return v; };
 
   // controles de toque
@@ -446,7 +463,8 @@
   const game = {
     t: 0, room: null, roomT: 0, amb: [26, 20, 44], power: 1, surge: rnd(25, 45), surgeSeq: null,
     msg: '', msgT: 0, prompt: null, fadeT: 0, tp: null, map: false, debug: false,
-    creakT: rnd(6, 14), clankT: rnd(18, 35), blipT: rnd(2, 5), hbT: 0, flashFlick: 1, hintT: 0
+    creakT: rnd(6, 14), clankT: rnd(18, 35), blipT: rnd(2, 5), hbT: 0, flashFlick: 1, hintT: 0,
+    gen: false, genT: 0, powered: false, powerT: 0, ui: null, intro: false, lampSndT: 0
   };
   const motes = [];
   const puffs = [];
@@ -462,6 +480,8 @@
     motes.length = 0;
     for (let i = 0; i < 140; i++) motes.push({ x: cam.x + rnd(0, GW), y: cam.y + rnd(0, GH), vx: rnd(-3, 3), vy: rnd(-2, 2), ph: Math.random() * 6 });
     if (touch.el) touch.el.classList.add('on');
+    game.gen = game.powered = false; game.ui = null; game.intro = false;
+    if (/[?&]lit\b/.test(location.search)) { game.gen = true; game.genT = -99; game.powered = true; game.powerT = -99; }
   }
 
   function showMsg(text) { game.msg = text; game.msgT = 0; }
@@ -476,15 +496,17 @@
     game.t += dt; game.roomT += dt; game.msgT += dt; game.hintT += dt;
 
     // mapa
-    if (consume('m') || consume('tab')) { game.map = !game.map; Sfx.click(); }
+    if (game.ui) updateUI(dt);
+    if (!game.ui && (consume('m') || consume('tab'))) { game.map = !game.map; Sfx.click(); }
+    if (!game.intro && game.t > 2.6) { game.intro = true; showMsg('Está tudo apagado.'); }
     if (consume('k') || consume('`')) game.debug = !game.debug;
 
     // lanterna
-    if (consume('f')) { P.flash = !P.flash; Sfx.click(); }
+    if (!game.ui && consume('f')) { P.flash = !P.flash; Sfx.click(); }
 
     // movimento
     let ix = 0, iy = 0;
-    if (!game.map && !game.tp) {
+    if (!game.map && !game.tp && !game.ui) {
       if (keys.a || keys.arrowleft) ix -= 1;
       if (keys.d || keys.arrowright) ix += 1;
       if (keys.w || keys.arrowup) iy -= 1;
@@ -540,18 +562,27 @@
       if (room.name === '???') { Sfx.heartbeat(); post.glitch = 0.8; }
     }
     if (room) {
-      const tgt = [34 + room.rgb[0] * room.amb * 3, 28 + room.rgb[1] * room.amb * 3, 54 + room.rgb[2] * room.amb * 3];
+      const pk = game.powered ? 1 : 0.55;
+      const tgt = [(34 + room.rgb[0] * room.amb * 3) * pk, (28 + room.rgb[1] * room.amb * 3) * pk, (54 + room.rgb[2] * room.amb * 3) * pk];
       for (let i = 0; i < 3; i++) game.amb[i] = lerp(game.amb[i], tgt[i], Math.min(1, dt * 1.5));
     }
 
     // interação
     game.prompt = null;
-    for (const it of D.interact) {
+    if (!game.ui) for (const it of D.interact) {
       if (inR(P.x, P.y - 2, it.r)) { game.prompt = it; break; }
     }
     if (game.prompt && consume('e')) {
       const it = game.prompt;
       if (it.id === 'exit') { Sfx.rattle(); cam.shake = 2; showMsg(it.msg); }
+      else if (it.id === 'gen') {
+        if (game.gen) showMsg('O gerador já está funcionando.');
+        else openGen();
+      } else if (it.id === 'panel') {
+        if (game.powered) showMsg('A energia já está ligada.');
+        else if (!game.gen) { Sfx.deny(); showMsg('Sem corrente. O gerador está parado.'); }
+        else openPanel();
+      }
       else if (it.to) teleport(it.to, it.msg);
     }
     consume('e');
@@ -581,9 +612,19 @@
       if (l.off > 0) l.off -= dt;
       else if (Math.random() < l.f * dt * 1.3) l.off = rnd(0.03, 0.2) * (Math.random() < 0.15 ? 5 : 1);
       const wob = 1 - 0.1 * l.f * (0.5 + 0.5 * Math.sin(game.t * 9 + l.ph));
-      l.i = (l.off > 0 ? 0.08 : wob) * game.power;
+      const lv = circuitLevel(l);
+      if (lv > 0 && !l.lit) {
+        l.lit = true;
+        if (game.t > 3 && game.lampSndT <= 0 && Math.hypot(l.x - P.x, l.y - P.y) < 220) { Sfx.lampOn(); game.lampSndT = 0.08; }
+      }
+      l.i = (l.off > 0 ? 0.08 : wob) * lv * (l.g === 'main' ? game.power : 1);
     }
-    game.surge -= dt;
+    game.lampSndT -= dt;
+    if (game.gen) {
+      const d = Math.hypot(P.x - GEN_POS[0], P.y - GEN_POS[1]);
+      Sfx.setEngine(0.12 + 0.88 * clamp(1 - d / 380, 0, 1));
+    }
+    if (game.powered) game.surge -= dt;
     if (game.surge <= 0 && !game.surgeSeq) {
       game.surgeSeq = { t: 0 }; Sfx.zap();
     }
@@ -604,7 +645,8 @@
     game.blipT -= dt;
     if (game.blipT < 0) {
       game.blipT = rnd(3, 8);
-      if (game.room && /ARCADE|LOBBY/.test(game.room.name)) Sfx.blip(game.power);
+      if (!game.powered) { /* fliperamas mudos sem energia */ }
+      else if (game.room && /ARCADE|LOBBY/.test(game.room.name)) Sfx.blip(game.power);
       else if (game.room && /CORREDOR/.test(game.room.name)) Sfx.blip(0.3 * game.power);
     }
     if (game.room && game.room.name === '???') { game.hbT -= dt; if (game.hbT < 0) { Sfx.heartbeat(); game.hbT = 1.5; } }
@@ -741,6 +783,7 @@
 
     drawHUD();
     if (game.map) drawMap();
+    if (game.ui) drawUI();
 
     // pós
     const fadeIn = clamp(game.t / 2.2, 0, 1);
@@ -782,7 +825,15 @@
       }
     }
     // prompt
-    if (game.prompt && !game.tp) {
+    // objetivo
+    if (!game.ui && game.t > 3) {
+      let obj = null;
+      if (!game.gen) obj = '> LIGAR O GERADOR';
+      else if (!game.powered) obj = '> PAINEL ELETRICO';
+      else if (game.t - game.powerT < 6) obj = '> ENERGIA OK';
+      if (obj) text(obj, GW - 10, 22, game.powered ? '#8dff7a' : '#c8b8e8', 'right', 0.55 + 0.15 * Math.sin(game.t * 2));
+    }
+    if (game.prompt && !game.tp && !game.ui) {
       const pulse = 0.65 + 0.35 * Math.sin(game.t * 6);
       text(isTouch ? game.prompt.label.replace('[E]', '(E)') : game.prompt.label, GW / 2, GH - 46, '#ffe9a8', 'center', pulse);
     }
@@ -812,7 +863,288 @@
       g.fillRect(Math.round(ox + P.x * s) - 2, Math.round(oy + (P.y - 6) * s) - 2, 4, 4);
       g.fillStyle = '#fff'; g.fillRect(Math.round(ox + P.x * s) - 1, Math.round(oy + (P.y - 6) * s) - 1, 2, 2);
     }
+    if (!game.powered && Math.floor(game.t * 2) % 2 === 0) {
+      const o = game.gen ? PANEL_POS : GEN_POS;
+      g.strokeStyle = '#ffd24a'; g.lineWidth = 1;
+      g.strokeRect(Math.round(ox + o[0] * s) - 4.5, Math.round(oy + o[1] * s) - 4.5, 9, 9);
+    }
     if (fontReady) text('MAPA', 12, 4, '#f0e2c0');
+  }
+
+  // =====================================================================
+  //  ENERGIA — gerador (Power RM 2) e painel de distribuição (Power RM 1)
+  // =====================================================================
+  const GEN_POS = [1205, 236], PANEL_POS = [1012, 280];
+  const N = 1, E = 2, S = 4, Wb = 8;
+  const DIRS = [[N, 0, -1, S], [E, 1, 0, Wb], [S, 0, 1, N], [Wb, -1, 0, E]];
+  const rotM = m => ((m << 1) | (m >> 3)) & 15;
+  const PC = 6, PR = 4, SRC = 1, OUTS = [0, 2, 3], OUT_NAMES = ['ARCADES', 'COZINHA', 'SALOES'];
+  const CELL = 24, GX = 108, GY = 52;
+
+  function circuitLevel(l) {
+    if (l.g === 'emg') return 1;
+    if (l.g === 'gen') {
+      if (!game.gen) return 0;
+      const t = game.t - game.genT;
+      return t < 1.2 ? (Math.random() < 0.4 ? 1 : 0.1) : 1;
+    }
+    if (!game.powered) return 0;
+    const t = game.t - game.powerT;
+    if (t < l.onAt) return 0;
+    if (t < l.onAt + 0.55) return Math.random() < 0.45 ? 1 : 0.05;
+    return 1;
+  }
+
+  const actionPressed = () => consume('e') || consume(' ') || consume('enter');
+  const closePressed = () => consume('escape') || consume('q') || consume('x');
+  const uiMouse = () => [mouse.x * GW, mouse.y * GH];
+
+  function openGen() {
+    game.ui = { type: 'gen', t: 0, ph: 0, needle: 0, speed: 2.2, hits: 0, zone: newZone(0.22), flash: 0, flashC: '#5f5', done: -1, shake: 0 };
+    Sfx.click();
+  }
+  function newZone(w) { const a = rnd(0.12, 0.88 - w); return [a, a + w]; }
+
+  function makePanel() {
+    const base = new Array(PC * PR).fill(0), seen = new Array(PC * PR).fill(false);
+    const st = [[0, SRC]]; seen[SRC * PC] = true;
+    while (st.length) {
+      const [x, y] = st[st.length - 1];
+      const opts = DIRS.filter(([, dx, dy]) => { const nx = x + dx, ny = y + dy; return nx >= 0 && ny >= 0 && nx < PC && ny < PR && !seen[ny * PC + nx]; });
+      if (!opts.length) { st.pop(); continue; }
+      const [b, dx, dy, ob] = opts[(Math.random() * opts.length) | 0];
+      base[y * PC + x] |= b; base[(y + dy) * PC + x + dx] |= ob; seen[(y + dy) * PC + x + dx] = true;
+      st.push([x + dx, y + dy]);
+    }
+    base[SRC * PC] |= Wb;
+    OUTS.forEach(r => { base[r * PC + PC - 1] |= E; });
+    const ui = { type: 'panel', t: 0, base, rot: base.map(() => 0), ang: base.map(() => 0), cur: [0, SRC], lit: [], outs: [], solved: false, doneT: 0, kb: false };
+    do {
+      for (let i = 0; i < base.length; i++) { ui.rot[i] = (Math.random() * 4) | 0; ui.ang[i] = ui.rot[i] * Math.PI / 2; }
+      flow(ui);
+    } while (ui.outs.filter(Boolean).length > 0);
+    return ui;
+  }
+  function tileMask(ui, i) { let m = ui.base[i]; for (let k = 0; k < ui.rot[i] % 4; k++) m = rotM(m); return m; }
+  function flow(ui) {
+    const lit = new Array(PC * PR).fill(false);
+    const q = [];
+    if (tileMask(ui, SRC * PC) & Wb) { lit[SRC * PC] = true; q.push(SRC * PC); }
+    while (q.length) {
+      const i = q.shift(), x = i % PC, y = (i / PC) | 0, m = tileMask(ui, i);
+      for (const [b, dx, dy, ob] of DIRS) {
+        if (!(m & b)) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= PC || ny >= PR) continue;
+        const j = ny * PC + nx;
+        if (!lit[j] && (tileMask(ui, j) & ob)) { lit[j] = true; q.push(j); }
+      }
+    }
+    ui.lit = lit;
+    ui.outs = OUTS.map(r => lit[r * PC + PC - 1] && !!(tileMask(ui, r * PC + PC - 1) & E));
+  }
+  function openPanel() { game.ui = makePanel(); Sfx.click(); }
+
+  function rotateTile(ui, i) {
+    const before = ui.outs.filter(Boolean).length;
+    ui.rot[i]++; Sfx.tick(); flow(ui);
+    const after = ui.outs.filter(Boolean).length;
+    if (after > before) Sfx.ding(after - 1);
+    if (after === OUTS.length) { ui.solved = true; ui.doneT = 0; Sfx.success(); post.glitch = 0.4; }
+  }
+
+  function startPowerOn() {
+    game.powered = true; game.powerT = game.t;
+    for (const l of D.lights) if (l.g === 'main') { l.onAt = 0.5 + Math.hypot(l.x - PANEL_POS[0], l.y - PANEL_POS[1]) / 420 + rnd(0, 0.35); l.lit = false; }
+    Sfx.clunk(); setTimeout(() => Sfx.powerUp(), 350);
+    cam.shake = 3; post.glitch = 1;
+    showMsg('A energia voltou.');
+    game.surge = rnd(40, 80);
+  }
+
+  function updateUI(dt) {
+    const ui = game.ui; ui.t += dt;
+    if (closePressed() && !(ui.type === 'panel' && ui.solved) && !(ui.type === 'gen' && ui.done >= 0)) { game.ui = null; Sfx.click(); return; }
+    const click = consume('click');
+    const [mx, my] = uiMouse();
+    // botão fechar (canto do painel)
+    if (click && mx > 322 && mx < 342 && my > 20 && my < 34) { game.ui = null; Sfx.click(); return; }
+
+    if (ui.type === 'gen') {
+      ui.flash = Math.max(0, ui.flash - dt * 3); ui.shake = Math.max(0, ui.shake - dt * 10);
+      if (ui.done >= 0) {
+        ui.done += dt;
+        ui.needle = lerp(ui.needle, 0.92 + Math.sin(ui.t * 40) * 0.02, dt * 4);
+        if (ui.done > 1.6) { game.ui = null; showMsg('O gerador ligou. Agora o painel elétrico.'); }
+        return;
+      }
+      ui.ph += ui.speed * dt;
+      ui.needle = 0.5 - 0.5 * Math.cos(ui.ph);
+      if (actionPressed() || click) {
+        if (ui.needle >= ui.zone[0] && ui.needle <= ui.zone[1]) {
+          ui.hits++; ui.flash = 1; ui.flashC = '#6f6'; Sfx.pull(true); cam.shake = 1.5;
+          if (ui.hits >= 3) {
+            ui.done = 0; game.gen = true; game.genT = game.t; Sfx.engineStart(); post.glitch = 0.6; cam.shake = 3;
+          } else { ui.zone = newZone(0.22 - ui.hits * 0.05); ui.speed += 0.7; }
+        } else {
+          ui.hits = Math.max(0, ui.hits - 1); ui.flash = 1; ui.flashC = '#f44'; ui.shake = 4; Sfx.pull(false);
+        }
+      }
+      return;
+    }
+
+    // painel
+    for (let i = 0; i < ui.ang.length; i++) {
+      const tgt = ui.rot[i] * Math.PI / 2;
+      ui.ang[i] += (tgt - ui.ang[i]) * Math.min(1, dt * 18);
+    }
+    if (ui.solved) {
+      ui.doneT += dt;
+      if (ui.doneT > 1.8) { game.ui = null; startPowerOn(); }
+      return;
+    }
+    const mv = (dx, dy) => { ui.kb = true; ui.cur = [clamp(ui.cur[0] + dx, 0, PC - 1), clamp(ui.cur[1] + dy, 0, PR - 1)]; };
+    if (consume('arrowleft') || consume('a')) mv(-1, 0);
+    if (consume('arrowright') || consume('d')) mv(1, 0);
+    if (consume('arrowup') || consume('w')) mv(0, -1);
+    if (consume('arrowdown') || consume('s')) mv(0, 1);
+    if (actionPressed()) { ui.kb = true; rotateTile(ui, ui.cur[1] * PC + ui.cur[0]); }
+    if (click) {
+      const tx = Math.floor((mx - GX) / CELL), ty = Math.floor((my - GY) / CELL);
+      if (tx >= 0 && ty >= 0 && tx < PC && ty < PR) { ui.kb = false; ui.cur = [tx, ty]; rotateTile(ui, ty * PC + tx); }
+    }
+  }
+
+  function frame9(x, y, w, h) {
+    g.fillStyle = 'rgba(2,1,6,0.72)'; g.fillRect(0, 0, GW, GH);
+    g.fillStyle = '#0b0910'; g.fillRect(x - 2, y - 2, w + 4, h + 4);
+    g.fillStyle = '#3a3346'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
+    g.fillStyle = '#17141c'; g.fillRect(x, y, w, h);
+    g.fillStyle = '#211d29'; g.fillRect(x + 3, y + 3, w - 6, h - 6);
+    g.fillStyle = '#5a5068';
+    for (const [rx, ry] of [[x + 4, y + 4], [x + w - 6, y + 4], [x + 4, y + h - 6], [x + w - 6, y + h - 6]]) g.fillRect(rx, ry, 2, 2);
+    // listras de aviso
+    for (let i = 0; i < w - 16; i += 8) { g.fillStyle = (i / 8) % 2 ? '#2a2410' : '#5a4a14'; g.fillRect(x + 8 + i, y + h - 10, 8, 3); }
+    text('ESC', x + w - 22, y + 6, '#6a6078');
+  }
+
+  function drawUI() {
+    const ui = game.ui;
+    if (ui.type === 'gen') return drawGen(ui);
+    drawPanel(ui);
+  }
+
+  function drawGen(ui) {
+    const sx = Math.round((Math.random() - 0.5) * ui.shake);
+    frame9(40 + sx, 18, 304, 180);
+    text('PARTIDA DO GERADOR', GW / 2 + sx, 28, '#f0e2c0', 'center');
+    const cx = GW / 2 + sx, cy = 128, R = 62;
+    g.lineCap = 'butt';
+    g.lineWidth = 12; g.strokeStyle = '#0d0b12';
+    g.beginPath(); g.arc(cx, cy, R, Math.PI, Math.PI * 2); g.stroke();
+    g.lineWidth = 10; g.strokeStyle = '#2b2533';
+    g.beginPath(); g.arc(cx, cy, R, Math.PI, Math.PI * 2); g.stroke();
+    if (ui.done < 0) {
+      g.strokeStyle = '#2f9a44';
+      g.beginPath(); g.arc(cx, cy, R, Math.PI + ui.zone[0] * Math.PI, Math.PI + ui.zone[1] * Math.PI); g.stroke();
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.35; g.strokeStyle = '#3fff70'; g.lineWidth = 14;
+      g.beginPath(); g.arc(cx, cy, R, Math.PI + ui.zone[0] * Math.PI, Math.PI + ui.zone[1] * Math.PI); g.stroke();
+      g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+    } else {
+      g.strokeStyle = '#8a2a20';
+      g.beginPath(); g.arc(cx, cy, R, Math.PI * 1.8, Math.PI * 2); g.stroke();
+    }
+    g.lineWidth = 1; g.strokeStyle = '#6a6078';
+    for (let i = 0; i <= 10; i++) {
+      const a = Math.PI + (i / 10) * Math.PI, r0 = R - 10, r1 = i % 5 ? R - 14 : R - 18;
+      g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.stroke();
+    }
+    const na = Math.PI + ui.needle * Math.PI;
+    g.lineWidth = 2; g.strokeStyle = '#ff5a40';
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(na) * (R - 4), cy + Math.sin(na) * (R - 4)); g.stroke();
+    g.lineWidth = 1;
+    g.fillStyle = '#4a4252'; g.fillRect(cx - 5, cy - 5, 10, 10);
+    g.fillStyle = '#8a8098'; g.fillRect(cx - 2, cy - 2, 4, 4);
+    if (ui.flash > 0) { g.globalAlpha = ui.flash * 0.5; g.fillStyle = ui.flashC; g.fillRect(cx - R - 8, cy - R - 8, R * 2 + 16, R + 12); g.globalAlpha = 1; }
+    // tentativas
+    for (let i = 0; i < 3; i++) {
+      const px = cx - 22 + i * 18, py = 142;
+      g.fillStyle = '#0d0b12'; g.fillRect(px - 1, py - 1, 12, 12);
+      g.fillStyle = i < ui.hits ? '#ffd24a' : '#2b2533'; g.fillRect(px, py, 10, 10);
+      if (i < ui.hits) { g.fillStyle = '#fff3b0'; g.fillRect(px + 2, py + 2, 3, 3); }
+    }
+    if (ui.done >= 0) text('GERADOR LIGADO', cx, 164, '#8dff7a', 'center');
+    else text(isTouch ? 'TOQUE NA ZONA VERDE' : 'E / CLIQUE NA ZONA VERDE', cx, 164, '#a89cc0', 'center');
+  }
+
+  function drawWire(m, col, w) {
+    const h = w / 2;
+    if (m & N) g.fillRect(-h, -CELL / 2, w, CELL / 2 + h);
+    if (m & S) g.fillRect(-h, -h, w, CELL / 2 + h);
+    if (m & E) g.fillRect(-h, -h, CELL / 2 + h, w);
+    if (m & Wb) g.fillRect(-CELL / 2, -h, CELL / 2 + h, w);
+  }
+
+  function drawPanel(ui) {
+    frame9(40, 18, 304, 180);
+    text('PAINEL DE DISTRIBUIÇÃO', GW / 2, 26, '#f0e2c0', 'center');
+    const pulse = 0.75 + 0.25 * Math.sin(game.t * 8);
+    // gerador (entrada)
+    const sy = GY + SRC * CELL;
+    g.fillStyle = '#0d0b12'; g.fillRect(50, sy + 1, 46, 22);
+    g.fillStyle = '#2b2533'; g.fillRect(51, sy + 2, 44, 20);
+    text('GER', 56, sy + 8, '#ffd24a');
+    g.fillStyle = '#ffd24a'; g.fillRect(86, sy + 9, 6, 6);
+    g.fillStyle = '#ffd24a'; g.fillRect(96, sy + CELL / 2 - 2, GX - 96, 4);
+    // peças
+    for (let y = 0; y < PR; y++) for (let x = 0; x < PC; x++) {
+      const i = y * PC + x, px = GX + x * CELL, py = GY + y * CELL;
+      g.fillStyle = '#0d0b12'; g.fillRect(px, py, CELL, CELL);
+      g.fillStyle = (x + y) % 2 ? '#1c1924' : '#1f1b28'; g.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
+      g.fillStyle = '#2e2838';
+      g.fillRect(px + 2, py + 2, 1, 1); g.fillRect(px + CELL - 3, py + 2, 1, 1); g.fillRect(px + 2, py + CELL - 3, 1, 1); g.fillRect(px + CELL - 3, py + CELL - 3, 1, 1);
+      const lit = ui.lit[i], m = ui.base[i];
+      g.save(); g.translate(px + CELL / 2, py + CELL / 2); g.rotate(ui.ang[i]);
+      if (lit) {
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.25 * pulse; g.fillStyle = '#ff8a20'; drawWire(m, 0, 8);
+        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      }
+      g.fillStyle = lit ? '#ffd24a' : '#4a4252'; drawWire(m, 0, 4);
+      const single = [N, E, S, Wb].filter(b => m & b).length === 1;
+      g.fillStyle = lit ? '#fff3b0' : '#5a5068';
+      if (single) { g.fillRect(-4, -4, 8, 8); g.fillStyle = lit ? '#ff9a20' : '#2b2533'; g.fillRect(-2, -2, 4, 4); }
+      else g.fillRect(-3, -3, 6, 6);
+      g.restore();
+    }
+    // cursor
+    if (ui.kb && !ui.solved && Math.floor(game.t * 4) % 2 === 0) {
+      g.strokeStyle = '#7fe0ff'; g.lineWidth = 1;
+      g.strokeRect(GX + ui.cur[0] * CELL + 0.5, GY + ui.cur[1] * CELL + 0.5, CELL - 1, CELL - 1);
+    }
+    // saídas
+    OUTS.forEach((r, k) => {
+      const on = ui.outs[k], oy = GY + r * CELL;
+      const ex = GX + PC * CELL;
+      g.fillStyle = on ? '#ffd24a' : '#3a3346'; g.fillRect(ex, oy + CELL / 2 - 2, 8, 4);
+      g.fillStyle = '#0d0b12'; g.fillRect(ex + 8, oy + 7, 10, 10);
+      g.fillStyle = on ? '#7dff6a' : '#24301f'; g.fillRect(ex + 9, oy + 8, 8, 8);
+      if (on) {
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5 * pulse;
+        g.drawImage(glow('#7dff6a'), ex + 1, oy - 1, 24, 24);
+        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      }
+      text(OUT_NAMES[k], ex + 22, oy + 8, on ? '#c8ffb8' : '#6a6078');
+    });
+    if (ui.solved) {
+      const a = Math.min(1, ui.doneT * 3);
+      text('ENERGIA RESTAURADA', GW / 2, 160, '#8dff7a', 'center', a);
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.max(0, 0.3 - ui.doneT * 0.3);
+      g.fillStyle = '#ffe080'; g.fillRect(GX, GY, PC * CELL, PR * CELL);
+      g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+    } else {
+      text('LEVE A ENERGIA ATE AS 3 SAIDAS', GW / 2, 158, '#c8b8e8', 'center');
+      text(isTouch ? 'TOQUE NAS PEÇAS PARA GIRAR' : 'CLIQUE OU SETAS + E PARA GIRAR', GW / 2, 170, '#7a6f8a', 'center');
+    }
   }
 
   // =====================================================================
@@ -838,7 +1170,7 @@
     if (state === 'title') { drawTitle(now); post.fade = 1; post.glitch = Math.random() < 0.02 ? 0.5 : 0; post.flash = 0; }
     else if (state === 'cutscene') { anyInput(); drawCutscene(dt); }
     else if (state === 'game') { updateGame(dt); drawGame(); }
-    for (const k of ['enter', 'escape', ' ', 'click']) pressed[k] = false;
+    for (const k in pressed) pressed[k] = false;
     Post.render(buf, { time: now, glitch: post.glitch, flash: post.flash, curv: post.curv, fade: post.fade });
     requestAnimationFrame(frame);
   }
