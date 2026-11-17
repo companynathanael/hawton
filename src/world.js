@@ -478,6 +478,162 @@ window.World = (() => {
     addObj({ kind: 'panel', x, y, w: 18, h: 16 });
   }
 
+
+  // ---------- detalhes extras ----------
+  const onBase = fn => { const pc = cx; cx = g; fn(); cx = pc; };
+  const onObj = fn => { const pc = cx; cx = og; fn(); cx = pc; };
+  function pot(x, y, c = '#8a8e98') { R(x, y + 1, 6, 4, c); R(x + 1, y, 4, 1, shade(c, 1.3)); R(x + 1, y + 1, 4, 1, '#2a2e36'); P(x - 1, y + 2, c); P(x + 6, y + 2, c); }
+  function pan(x, y) { R(x, y, 5, 4, '#3a3e48'); R(x + 1, y + 1, 3, 2, '#202228'); R(x + 5, y + 2, 4, 1, '#6a5040'); }
+  function board(x, y) { R(x, y, 8, 5, '#c89a5a'); R(x, y + 4, 8, 1, '#8a6438'); P(x + 2, y + 1, '#d83a2a'); P(x + 4, y + 2, '#d83a2a'); P(x + 5, y + 1, '#4aa83a'); R(x + 9, y + 2, 4, 1, '#d0d4dc'); P(x + 13, y + 2, '#2a2014'); }
+  function bottle(x, y, c) { R(x, y + 1, 2, 4, c); P(x, y, '#e8e8e8'); P(x, y + 2, shade(c, 1.4)); }
+  function plates(x, y, n = 4) { for (let i = 0; i < n; i++) R(x, y - i, 6, 1, i % 2 ? '#f0f0f4' : '#c8c8d4'); }
+  function bowl(x, y, c) { R(x, y, 5, 3, '#e8e8f0'); R(x + 1, y, 3, 1, c); }
+  function dough(x, y) { R(x, y, 4, 3, '#f0dcb0'); P(x + 1, y, '#fff4d8'); }
+  function sack(x, y) { R(x + 1, y - 1, 8, 1, '#c8bea8'); R(x, y, 10, 12, '#e8e0cc'); R(x, y, 10, 1, '#fffaf0'); R(x + 2, y + 4, 6, 3, '#c03a2a'); R(x, y + 11, 10, 1, '#a89e88'); block(x, y + 5, 10, 7); addObj({ kind: 'sack', x, y: y - 1, w: 10, h: 13 }); }
+  function bin(x, y, c = '#2a6a3a') { R(x - 1, y, 12, 2, shade(c, 1.3)); R(x, y + 2, 10, 11, c); R(x + 2, y + 5, 6, 1, shade(c, 0.7)); R(x + 2, y + 8, 6, 1, shade(c, 0.7)); R(x, y + 13, 10, 1, 'rgba(0,0,0,0.4)'); block(x, y + 5, 10, 8); addObj({ kind: 'bin', x: x - 1, y, w: 12, h: 14 }); }
+  function trayRack(x, y) {
+    R(x, y, 14, 26, '#8a949e'); R(x + 1, y + 1, 12, 24, '#3a3e48');
+    for (let j = 2; j < 24; j += 4) { R(x + 1, y + j, 12, 1, '#a8b0b8'); if (rand() < 0.7) R(x + 2, y + j - 2, 10, 2, pick(['#d8b880', '#f0dcb0', '#c03a2a'])); }
+    R(x, y + 26, 2, 2, '#202020'); R(x + 12, y + 26, 2, 2, '#202020');
+    block(x, y + 14, 14, 14); addObj({ kind: 'rack', x, y, w: 14, h: 28 });
+  }
+  function wetSign(x, y) { R(x + 1, y, 4, 1, '#e8c030'); R(x, y + 1, 6, 7, '#f0d040'); R(x + 2, y + 2, 2, 3, '#202020'); P(x + 2, y + 6, '#202020'); R(x, y + 8, 6, 1, '#8a7020'); block(x, y + 4, 6, 4); addObj({ kind: 'sign', x, y, w: 6, h: 9 }); }
+  function mopBucket(x, y) { R(x, y + 3, 9, 7, '#e8c030'); R(x + 1, y + 4, 7, 2, '#5a7a9a'); R(x + 6, y - 8, 1, 12, '#a07a50'); R(x + 4, y + 2, 5, 2, '#d8d0c0'); block(x, y + 5, 9, 5); addObj({ kind: 'bucket', x, y: y - 8, w: 9, h: 18 }); }
+  function drain(x, y) { R(x, y, 7, 7, '#5a646e'); for (let i = 1; i < 7; i += 2) R(x + 1, y + i, 5, 1, '#20262c'); }
+  function stain(x, y, w, h, c, a = 0.3) { cx.globalAlpha = a; R(x + 1, y, w - 2, h, c); R(x, y + 1, w, h - 2, c); cx.globalAlpha = 1; }
+  function extinguisher(x, y) { R(x + 1, y, 2, 2, '#202020'); R(x, y + 2, 4, 8, '#d02a2a'); P(x + 1, y + 3, '#ff7a6a'); R(x, y + 10, 4, 1, 'rgba(0,0,0,0.4)'); block(x, y + 6, 4, 4); addObj({ kind: 'ext', x, y, w: 4, h: 11 }); }
+  function clock(x, y) { R(x, y, 7, 7, '#e8e8f0'); R(x + 1, y + 1, 5, 5, '#fffaf0'); R(x + 3, y + 1, 1, 3, '#202020'); R(x + 3, y + 3, 2, 1, '#202020'); }
+  function cobweb(x, y, flip) { cx.globalAlpha = 0.35; const f = flip ? -1 : 1; for (let i = 0; i < 7; i++) { P(x + f * i, y, '#c8c8d0'); P(x, y + i, '#c8c8d0'); P(x + f * i, y + i, '#c8c8d0'); } for (let i = 2; i < 6; i++) { P(x + f * i, y + 3, '#c8c8d0'); P(x + f * 3, y + i, '#c8c8d0'); } cx.globalAlpha = 1; }
+  function sconce(x, y, c) { R(x, y, 4, 3, '#3a3e48'); R(x + 1, y + 1, 2, 2, c); lights.push({ x: x + 2, y: y + 8, r: 22, c, f: 0.25, g: 'main' }); }
+  function neon(x, y, w, c, kind) {
+    const pc = cx; cx = g;
+    if (kind === 'zig') for (let i = 0; i < w; i++) P(x + i, y + ((i >> 2) % 2 ? 1 : 4) + (i % 4 === 0 ? 0 : 0), c);
+    else if (kind === 'star') { R(x + 3, y, 1, 7, c); R(x, y + 3, 7, 1, c); P(x + 1, y + 1, c); P(x + 5, y + 1, c); P(x + 1, y + 5, c); P(x + 5, y + 5, c); }
+    else { R(x, y, w, 1, c); R(x, y + 5, w, 1, c); for (let i = 0; i < w; i += 5) R(x + i, y + 1, 1, 4, c); }
+    cx = pc;
+    lights.push({ x: x + w / 2, y: y + 10, r: Math.max(24, w * 0.6), c, f: 0.3, g: 'main' });
+  }
+  function gift(x, y, c) { R(x, y, 7, 6, c); R(x + 3, y, 1, 6, '#ffe060'); R(x, y + 2, 7, 1, '#ffe060'); P(x + 2, y - 1, '#ffe060'); P(x + 4, y - 1, '#ffe060'); block(x, y + 2, 7, 4); addObj({ kind: 'gift', x, y: y - 1, w: 7, h: 7 }); }
+  function hat(x, y, c) { P(x + 1, y, '#ffe060'); R(x + 1, y + 1, 1, 1, c); R(x, y + 2, 3, 2, c); }
+  function cake(x, y) { R(x, y + 2, 10, 5, '#f0d0e0'); R(x, y + 2, 10, 1, '#fff0f8'); R(x + 1, y + 4, 8, 1, '#ff6a9a'); for (let i = 1; i < 10; i += 3) { R(x + i, y, 1, 2, '#6ab0ff'); P(x + i, y - 1, '#ffd84f'); } }
+  function cup(x, y, c) { R(x, y, 2, 2, c); P(x, y, shade(c, 1.4)); }
+  function speaker(x, y) { R(x, y, 10, 14, '#1a1a22'); R(x + 2, y + 2, 6, 4, '#2a2a34'); R(x + 3, y + 7, 4, 4, '#2a2a34'); P(x + 4, y + 8, '#4a4a54'); block(x, y + 6, 10, 8); addObj({ kind: 'speaker', x, y, w: 10, h: 14 }); }
+  function barrel(x, y, c = '#3a6aa0') { R(x, y, 11, 13, c); R(x, y, 11, 2, shade(c, 1.35)); R(x, y + 5, 11, 1, shade(c, 0.6)); R(x, y + 9, 11, 1, shade(c, 0.6)); R(x + 3, y + 6, 4, 3, '#e0c030'); R(x, y + 13, 11, 1, 'rgba(0,0,0,0.4)'); block(x, y + 5, 11, 8); addObj({ kind: 'barrel', x, y, w: 11, h: 14 }); }
+  function toolbox(x, y) { R(x, y + 2, 12, 6, '#c03030'); R(x, y + 2, 12, 1, '#ff6060'); R(x + 4, y, 4, 2, '#3a3e48'); R(x + 5, y + 4, 2, 1, '#c0c0c8'); }
+  function spool(x, y) { R(x, y, 12, 12, '#8a6a3a'); R(x + 2, y + 2, 8, 8, '#2a2a2a'); R(x + 5, y + 5, 2, 2, '#8a6a3a'); block(x, y + 4, 12, 8); addObj({ kind: 'spool', x, y, w: 12, h: 12 }); }
+  function locker(x, y, n = 2) { for (let i = 0; i < n; i++) { const lx = x + i * 9; R(lx, y, 9, 22, '#4a6a8a'); R(lx, y, 9, 1, '#6a8aaa'); R(lx + 8, y, 1, 22, '#2a4a6a'); for (let j = 3; j < 8; j += 2) R(lx + 2, y + j, 5, 1, '#2a4a6a'); R(lx + 6, y + 11, 1, 3, '#c0c0c8'); } block(x, y + 10, n * 9, 12); addObj({ kind: 'locker', x, y, w: n * 9, h: 22 }); }
+  function cork(x, y, w) { R(x, y, w, 9, '#a8783a'); R(x, y, w, 1, '#5a3a1a'); for (let i = 2; i < w - 4; i += 5) { R(x + i, y + 2 + (i % 3), 4, 4, pick(['#f0f0e0', '#fff0a0', '#c0e0ff', '#ffc0c0'])); P(x + i + 1, y + 2 + (i % 3), '#d02020'); } }
+  function drawing(x, y) { R(x, y, 8, 7, '#f4f0e4'); const c = pick(['#d02020', '#2040d0', '#20a040', '#a020c0', '#202020']); R(x + 2, y + 2, 3, 3, c); P(x + 6, y + 1, '#ffc020'); R(x + 1, y + 5, 6, 1, pick(['#20a040', '#202020'])); }
+  function puddle(x, y, w) { cx.globalAlpha = 0.45; R(x + 2, y, w - 4, 1, '#6a8aa8'); R(x, y + 1, w, 3, '#4a6a88'); R(x + 2, y + 4, w - 4, 1, '#4a6a88'); cx.globalAlpha = 0.6; R(x + 3, y + 1, 3, 1, '#a8c8e8'); cx.globalAlpha = 1; }
+  function bench(x, y, w, c = '#5a3a6a') { R(x, y, w, 5, c); R(x, y, w, 1, shade(c, 1.4)); R(x + 1, y + 5, 2, 2, '#1a1a20'); R(x + w - 3, y + 5, 2, 2, '#1a1a20'); block(x, y + 1, w, 6); addObj({ kind: 'bench', x, y, w, h: 7 }); }
+  function stanchion(x, y) { R(x, y, 3, 2, '#e0c060'); R(x + 1, y + 2, 1, 6, '#c0a040'); R(x, y + 8, 3, 1, '#8a7030'); block(x, y + 5, 3, 4); addObj({ kind: 'stanchion', x, y, w: 3, h: 9 }); }
+  function rope(x0, x1, y) { const pc = cx; cx = og; for (let x = x0; x <= x1; x++) P(x, y + 3 + Math.round(Math.sin((x - x0) / (x1 - x0) * Math.PI) * 2), '#c02040'); cx = pc; }
+  function kidsTable(x, y) { R(x, y, 22, 12, '#f0c030'); R(x, y, 22, 1, '#ffe080'); R(x, y + 11, 22, 1, '#a07a10'); for (let i = 0; i < 4; i++) R(x + 3 + i * 5, y + 3, 3, 4, '#fffaf0'); P(x + 5, y + 8, '#d02020'); P(x + 12, y + 8, '#2040d0'); P(x + 17, y + 7, '#20a040'); block(x, y + 2, 22, 10); addObj({ kind: 'ktable', x, y, w: 22, h: 12 }); [[-6, 2], [23, 2], [8, -6], [8, 13]].forEach(([dx, dy]) => { R(x + dx, y + dy, 5, 5, pick(['#d02020', '#2060d0', '#20a040'])); }); }
+  function brokenCab(x, y) { R(x, y + 4, 24, 12, '#3a2a4a'); R(x, y + 4, 24, 1, '#5a4a6a'); R(x + 3, y + 6, 8, 7, '#0a0a10'); P(x + 5, y + 8, '#c0d0e0'); P(x + 7, y + 10, '#c0d0e0'); R(x + 14, y + 7, 6, 4, '#c23a3a'); R(x + 24, y + 6, 3, 8, '#2a1a34'); block(x, y + 6, 26, 10); addObj({ kind: 'broken', x, y: y + 4, w: 27, h: 13 }); for (let i = 0; i < 10; i++) onBase(() => P(x - 6 + ri(0, 36), y + 16 + ri(0, 6), '#a8c8e8')); }
+  function tickets(x, y, n) { onBase(() => { for (let i = 0; i < n; i++) { const a = x + ri(0, 30), b = y + ri(0, 20); if (tAt(a >> 3, b >> 3) !== FLOOR || face[ti(a >> 3, b >> 3)]) continue; R(a, b, 3, 1, '#ff9a30'); P(a + 1, b, '#ffd080'); } }); }
+  function boiler(x, y) { R(x, y, 22, 32, '#6a6e78'); R(x, y, 22, 2, '#8a8e98'); R(x + 2, y + 4, 18, 26, '#5a5e68'); R(x + 7, y + 8, 8, 8, '#2a2e36'); R(x + 9, y + 10, 4, 4, '#ff6a20'); R(x + 18, y - 6, 3, 8, '#5a5e68'); R(x + 3, y + 22, 4, 2, '#c03030'); block(x, y + 14, 22, 18); addObj({ kind: 'boiler', x, y: y - 6, w: 22, h: 38 }); lights.push({ x: x + 11, y: y + 14, r: 20, c: '#ff7a30', f: 0.4, g: 'gen' }); }
+  function mattress(x, y) { R(x, y, 28, 14, '#c8bca0'); R(x, y, 28, 1, '#e8dcc0'); for (let i = 4; i < 28; i += 6) P(x + i, y + 6, '#9a8e72'); stain(x + 8, y + 3, 8, 6, '#6a4a2a', 0.5); block(x, y + 3, 28, 11); addObj({ kind: 'mattress', x, y, w: 28, h: 14 }); }
+  function ticketRail(x, y, w) { R(x, y, w, 1, '#c0c8d0'); for (let i = 2; i < w - 3; i += 6) { R(x + i, y + 1, 4, 5, '#fffaf0'); R(x + i + 1, y + 2, 2, 1, '#8a8a8a'); R(x + i + 1, y + 4, 2, 1, '#8a8a8a'); } }
+  function menuBoard(x, y) { R(x, y, 26, 11, '#1a2a22'); R(x, y, 26, 1, '#5a3a20'); for (let j = 3; j < 10; j += 2) R(x + 2, y + j, 14 + ri(0, 6), 1, '#d8e8d8'); R(x + 20, y + 3, 4, 3, '#ffd84f'); }
+  function potRack(x, y, n) { R(x, y, n * 9, 1, '#5a5e68'); for (let i = 0; i < n; i++) { const px = x + 2 + i * 9; R(px + 2, y + 1, 1, 2, '#5a5e68'); if (i % 2) pot(px, y + 3, '#a8acb4'); else pan(px, y + 3); } }
+  function freezer(x, y) { R(x, y, 26, 16, '#a8b4c0'); R(x + 1, y + 1, 24, 14, '#c0ccd8'); R(x + 13, y + 1, 1, 14, '#8a96a2'); R(x + 3, y + 6, 1, 4, '#5a646e'); R(x + 22, y + 6, 1, 4, '#5a646e'); R(x + 7, y + 3, 12, 2, '#3a7ac8'); }
+  function mixer(x, y) { R(x, y + 3, 6, 4, '#d83a3a'); R(x + 1, y, 5, 3, '#d83a3a'); R(x + 2, y + 4, 3, 2, '#c0c8d0'); }
+
+  function decor() {
+    cx = og;
+    // ===== COZINHA =====
+    onBase(() => {
+      potRack(652, 66, 7);
+      ticketRail(718, 64, 32);
+      menuBoard(696, 66);
+      clock(740, 65);
+      freezer(856, 152);
+      R(832, 158, 20, 2, '#e8c030');
+      drain(700, 170); drain(780, 262); drain(640, 280);
+      stain(724, 228, 14, 8, '#c03a2a', 0.35); stain(660, 186, 10, 6, '#c03a2a', 0.3);
+      stain(800, 240, 18, 10, '#ffffff', 0.35); stain(620, 160, 12, 8, '#5a4a30', 0.25);
+      for (let i = 0; i < 12; i++) { const x = ri(620, 890), y = ri(150, 275); if (tAt(x >> 3, y >> 3) === FLOOR && !face[ti(x >> 3, y >> 3)]) R(x, y, ri(2, 4), 1, pick(['#d0d4dc', '#c89a5a', '#f0dcb0', '#c03a2a'])); }
+      cobweb(610, 82, false); cobweb(821, 82, true); cobweb(909, 170, true);
+    });
+    // panelas no fogão e coisas nas bancadas
+    pot(657, 76, '#8a8e98'); pan(678, 77); pot(697, 76, '#a8acb4');
+    board(716, 78); bottle(733, 76, '#d02a2a'); bottle(736, 76, '#e8c030'); bottle(739, 76, '#2a8a3a'); bowl(743, 78, '#f0dcb0');
+    dough(647, 118); dough(653, 124); dough(649, 132); bowl(656, 114, '#d83a2a');
+    board(678, 116); plates(684, 135, 5); bottle(690, 120, '#d02a2a');
+    board(700, 203); bowl(722, 204, '#4aa83a'); plates(760, 210, 4); plates(768, 210, 6); mixer(774, 202);
+    plates(626, 292, 5); plates(634, 292, 3); bowl(668, 288, '#e8e8f0'); bottle(720, 286, '#3a6ac8'); bottle(724, 286, '#3a6ac8');
+    plates(790, 292, 6); board(810, 287); bowl(840, 288, '#f0dcb0'); bottle(870, 286, '#d02a2a');
+    // ilha nova com massa e balança
+    counter(724, 112, 40, 18, '#c0c8d0', '#8a949e'); dough(730, 116); dough(738, 117); dough(746, 115); R(754, 114, 6, 5, '#e8e8f0'); R(755, 115, 4, 2, '#4a4a54');
+    counter(636, 200, 36, 14, '#c0c8d0', '#8a949e'); board(640, 203); bowl(656, 203, '#d83a2a');
+    trayRack(806, 98); trayRack(806, 128);
+    sack(846, 184); sack(858, 186); sack(852, 196);
+    bin(886, 244); bin(898, 244, '#3a4a5a');
+    crate(824, 240); crate(824, 254); R(826, 243, 8, 3, '#d02a2a'); R(826, 257, 8, 3, '#d02a2a');
+    wetSign(760, 244); mopBucket(744, 248);
+    extinguisher(612, 232);
+    // ===== SEGURANÇA =====
+    onBase(() => { cork(96, 26, 30); clock(140, 27); for (let i = 0; i < 6; i++) R(ri(80, 190), ri(80, 112), 4, 3, '#e8e4d0'); cobweb(58, 42, false); cobweb(205, 42, true); });
+    locker(150, 38, 3);
+    R(140, 98, 12, 12, '#4a4e58'); R(141, 99, 10, 10, '#5a5e68'); R(146, 103, 2, 2, '#c0c0c8'); block(140, 102, 12, 8); addObj({ kind: 'safe', x: 140, y: 98, w: 12, h: 12 });
+    // ===== ARCADES =====
+    onBase(() => cobweb(98, 138, false));
+    neon(222, 124, 7, '#ff4fd0', 'star'); neon(236, 124, 7, '#40e0ff', 'star');
+    neon(302, 124, 80, '#ff60ff', 'zig');
+    R(352, 124, 12, 18, '#3a3a4a'); R(353, 126, 10, 6, '#ffd84f'); R(355, 133, 6, 3, '#1a1a20'); block(352, 134, 12, 8); addObj({ kind: 'change', x: 352, y: 124, w: 12, h: 18 });
+    trash(232, 150); bench(240, 224, 30); bench(470, 224, 30);
+    tickets(140, 150, 40); tickets(400, 150, 40); tickets(260, 230, 30);
+    brokenCab(230, 400); trash(270, 330);
+    onBase(() => { for (let i = 0; i < 20; i++) P(ri(220, 270), ri(396, 420), '#a8c8e8'); stain(120, 420, 20, 10, '#2a1a10', 0.4); cobweb(98, 306, false); cobweb(293, 306, true); });
+    neon(300, 500, 0, '#40e0ff', 'star');
+    tickets(130, 600, 40); tickets(260, 620, 30); bench(300, 600, 26);
+    neon(384, 296 - 4, 0, '#ffd84f', 'star');
+    tickets(400, 460, 40); bench(500, 460, 30); trash(388, 520);
+    onBase(() => { cobweb(378, 306, false); cobweb(541, 306, true); cobweb(98, 514, false); });
+    stool(660, 350); stool(672, 350); stool(726, 350);
+    tickets(640, 430, 40); trash(860, 470);
+    // ===== SALÕES =====
+    cake(1000, 135); cake(1150, 99);
+    [[972, 97], [990, 99], [1010, 97], [1040, 98], [1060, 99], [1140, 65], [1170, 66], [1200, 101], [1180, 137], [1210, 138], [1000, 387], [1030, 388], [1060, 427], [1090, 428]].forEach(([x, y], i) => cup(x, y, ['#ff6a6a', '#6ab0ff', '#ffd84f', '#7aff8a'][i % 4]));
+    [[1020, 99], [1100, 136], [1160, 66], [1020, 428]].forEach(([x, y]) => plates(x, y + 3, 3));
+    gift(940, 70); gift(948, 76, '#5ab0ff'); gift(1240, 156, '#d070ff'); gift(1250, 160, '#ff5a5a');
+    gift(940, 450, '#7aff8a'); gift(1150, 360, '#ffd84f');
+    speaker(1272, 46); speaker(1306, 46); speaker(1004, 322); speaker(1098, 322);
+    onBase(() => { [[960, 160, '#ff5a5a'], [1100, 120, '#5ab0ff'], [1190, 80, '#ffd84f'], [960, 460, '#d070ff'], [1080, 470, '#7aff8a']].forEach(([x, y, c]) => hat(x, y, c)); for (let i = 0; i < 6; i++) { const x = ri(940, 1250), y = ri(60, 160), c = pick(['#ff5a5a', '#5ab0ff', '#ffd84f']); for (let k = 0; k < 8; k++) P(x + k, y + Math.round(Math.sin(k) * 1.5), c); } cobweb(1325, 42, true); cobweb(1189, 330, true); });
+    // ===== LOBBY =====
+    stanchion(566, 700); stanchion(634, 700); rope(569, 633, 700);
+    kidsTable(590, 650);
+    locker(446, 660, 2);
+    R(446, 652, 18, 6, '#8a5a3a'); onBase(() => R(446, 646, 18, 6, '#c8a040'));
+    onBase(() => { R(676, 562, 30, 8, '#5a3a20'); for (let i = 0; i < 4; i++) { R(679 + i * 7, 560, 4, 4, '#ffd84f'); R(680 + i * 7, 564, 2, 3, '#c8a020'); } cobweb(442, 576, false); cobweb(781, 576, true); });
+    // ===== CORREDORES =====
+    [260, 380, 470, 620, 700, 800].forEach(x => onBase(() => sconce(x, 28, '#a080ff')));
+    [600, 760, 940, 1060, 1160].forEach(x => onBase(() => sconce(x, 500, '#ff80ff')));
+    onBase(() => { poster(420, 28, '#c83a3a'); poster(520, 28, '#3ac8a0'); poster(660, 28, '#ffd84f'); poster(900, 500, '#ff4fd0'); poster(1100, 500, '#5a8aff'); });
+    extinguisher(82, 300); extinguisher(82, 640); extinguisher(590, 380); extinguisher(1184, 530);
+    bench(150, 728, 30); trash(588, 470);
+    onBase(() => { stain(70, 470, 12, 18, '#2a1a10', 0.3); stain(700, 530, 20, 8, '#2a1a10', 0.3); });
+    // ===== ENERGIA =====
+    barrel(1030, 280); barrel(1041, 282, '#c03030'); toolbox(964, 284);
+    onBase(() => { R(990, 290, 14, 1, '#e0c030'); R(1010, 186, 10, 8, '#e0c030'); P(1014, 188, '#202020'); P(1014, 190, '#202020'); cobweb(922, 194, false); });
+    barrel(1158, 278); spool(1300, 276); toolbox(1180, 292);
+    onBase(() => { for (let i = 0; i < 6; i++) R(1196 + i * 5, 288, 1, 10, '#8a6a3a'); R(1196, 290, 26, 1, '#8a6a3a'); R(1196, 296, 26, 1, '#8a6a3a'); R(1290, 186, 10, 8, '#e0c030'); cobweb(1325, 194, true); });
+    // ===== PORÃO =====
+    boiler(1090, 600);
+    brokenCab(940, 690); mattress(1010, 700);
+    bin(1080, 640, '#4a4e58');
+    onBase(() => { puddle(960, 660, 16); puddle(1040, 680, 22); puddle(900, 690, 10); cobweb(882, 610, false); cobweb(1125, 610, true); stain(1000, 640, 26, 14, '#2a2a20', 0.35); for (let i = 0; i < 8; i++) { const x = ri(890, 1110); R(x, 602, 1, ri(3, 8), '#2a2a30'); } });
+    // ===== PORÃO SECRETO =====
+    onBase(() => {
+      for (let i = 0; i < 10; i++) drawing(1182 + i * 14 + (i > 3 ? 14 : 0), 595 + (i % 2) * 3);
+      for (let i = 0; i < 14; i++) { const x = 1190 + ri(0, 120), y = 620 + ri(0, 100); R(x, y, ri(3, 6), 1, '#8a8a92'); }
+      stain(1230, 700, 30, 14, '#3a1010', 0.4);
+      cobweb(1178, 610, false); cobweb(1325, 610, true);
+      R(1288, 690, 6, 2, '#1a1a1a'); R(1289, 690, 4, 1, '#c0c0c0');
+    });
+    R(1250, 680, 8, 8, '#7a4428'); R(1250, 676, 8, 4, '#9a6038'); R(1251, 688, 1, 3, '#4a2614'); R(1256, 688, 1, 3, '#4a2614'); block(1250, 680, 8, 9); addObj({ kind: 'chair', x: 1250, y: 676, w: 8, h: 15 });
+  }
+
   // ---------- desenho do mapa ----------
   function build() {
     cx = g;
@@ -641,6 +797,7 @@ window.World = (() => {
     cx.globalAlpha = 0.25; R(1220, 680, 40, 20, '#4a1a1a'); cx.globalAlpha = 1;
     R(1300, 700, 16, 12, '#1a1a22'); R(1301, 701, 14, 9, '#3a3a44');
 
+    decor();
     cx = g;
     g.drawImage(objC, 0, 0);
   }
@@ -746,8 +903,8 @@ window.World = (() => {
     const sec = d.type === 'security', exit = d.type === 'exit';
     const col = sec ? '#6a6e78' : exit ? '#5a7a9a' : '#7a4e30', lite = sec ? '#9aa0aa' : exit ? '#a8d0f0' : '#9a6a44', dark = sec ? '#3a3e48' : exit ? '#2a3a4a' : '#4a2c1a';
     if (d.horiz) {
-      const hh = 14;
-      const top = d.y - (hh - T) + 2;
+      const hh = 15;
+      const top = d.y - 1;
       if (sec) {
         // persiana de aço que desce
         const ph = Math.round(hh * (1 - a));
@@ -838,21 +995,22 @@ window.World = (() => {
   ];
 
   // ---------- câmeras (posição na planta = mesma do mundo) ----------
+  // x,y = centro da vista | w = largura da vista (altura 16:9) | ix,iy = posição do ícone na planta
   const cameras = [
-    { n: 1, name: 'LOBBY', x: 612, y: 650 },
-    { n: 2, name: 'ARCADE 1', x: 320, y: 208 },
-    { n: 3, name: 'ARCADE 2', x: 196, y: 388 },
-    { n: 4, name: 'ARCADE 3', x: 232, y: 596 },
-    { n: 5, name: 'ARCADE 4', x: 460, y: 424 },
-    { n: 6, name: 'ARCADE 5', x: 760, y: 410 },
-    { n: 7, name: 'COZINHA', x: 760, y: 190 },
-    { n: 8, name: 'PARTY HALL A', x: 1124, y: 104 },
-    { n: 9, name: 'PARTY HALL B', x: 1056, y: 408 },
-    { n: 10, name: 'CORREDOR C1', x: 300, y: 76 },
-    { n: 11, name: 'CORREDOR C6', x: 120, y: 700 },
-    { n: 12, name: 'CORREDOR C5', x: 870, y: 528 },
-    { n: 13, name: 'POWER ROOMS', x: 1124, y: 244 },
-    { n: 14, name: 'PORÃO', x: 1000, y: 666 },
+    { n: 1, name: 'LOBBY', x: 612, y: 644, w: 372 },
+    { n: 2, name: 'ARCADE 1', x: 320, y: 204, w: 470 },
+    { n: 3, name: 'ARCADE 2', x: 198, y: 386, w: 360 },
+    { n: 4, name: 'ARCADE 3', x: 232, y: 592, w: 360 },
+    { n: 5, name: 'ARCADE 4', x: 460, y: 420, w: 480 },
+    { n: 6, name: 'ARCADE 5', x: 760, y: 404, w: 340 },
+    { n: 7, name: 'COZINHA', x: 760, y: 188, w: 450 },
+    { n: 8, name: 'PARTY HALL A', x: 1124, y: 100, w: 430 },
+    { n: 9, name: 'PARTY HALL B', x: 1056, y: 404, w: 340 },
+    { n: 10, name: 'CORREDOR C1', x: 330, y: 74, w: 384, ix: 450, iy: 50 },
+    { n: 11, name: 'CORREDOR C6', x: 200, y: 640, w: 400, ix: 72, iy: 400 },
+    { n: 12, name: 'CORREDOR C5', x: 870, y: 524, w: 440, ix: 900, iy: 524 },
+    { n: 13, name: 'POWER ROOMS', x: 1124, y: 240, w: 430 },
+    { n: 14, name: 'PORÃO', x: 1000, y: 664, w: 300 },
   ];
 
   return {

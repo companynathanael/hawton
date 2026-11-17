@@ -477,7 +477,7 @@
     // mapa
     if (game.ui) updateUI(dt);
     if (!game.ui && !sec.seated && (consume('m') || consume('tab'))) { game.map = !game.map; Sfx.click(); }
-    if (!game.intro && game.t > 2.6) { game.intro = true; showMsg('Está tudo apagado.'); }
+    if (!game.intro && game.t > 2.6) { game.intro = true; if (!game.powered) showMsg('Está tudo apagado.'); }
     if (consume('k') || consume('`')) game.debug = !game.debug;
 
     // lanterna
@@ -669,7 +669,9 @@
     ctx.restore();
   }
 
+  let VW = GW, VH = GH;
   function drawScene(cx, cy, o) {
+    if (lightC.width !== VW || lightC.height !== VH) { lightC.width = VW; lightC.height = VH; }
     const st = { powered: game.powered, gen: game.gen, camOn: sec.cams };
     const px = Math.round(P.x) - cx, py = Math.round(P.y) - cy;
     const hx = px + Math.cos(P.aim) * 4, hy = py - 9 + Math.sin(P.aim) * 3;
@@ -677,12 +679,12 @@
 
     // mundo
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
-    g.fillStyle = '#05040a'; g.fillRect(0, 0, GW, GH);
-    g.drawImage(Wd.canvas, cx, cy, GW, GH, 0, 0, GW, GH);
-    Wd.drawDynamic(g, cx, cy, GW, GH, game.t, st);
+    g.fillStyle = '#05040a'; g.fillRect(0, 0, VW, VH);
+    g.drawImage(Wd.canvas, cx, cy, VW, VH, 0, 0, VW, VH);
+    Wd.drawDynamic(g, cx, cy, VW, VH, game.t, st);
 
     // sombra + jogador + o que fica na frente dele
-    if (px > -20 && py > -20 && px < GW + 20 && py < GH + 30) {
+    if (px > -20 && py > -20 && px < VW + 20 && py < VH + 30) {
       g.fillStyle = 'rgba(0,0,0,0.45)';
       g.beginPath(); g.ellipse(px, py - 1, 6, 2.2, 0, 0, Math.PI * 2); g.fill();
       const spr = Sprite.frames[P.dir][P.frame];
@@ -693,14 +695,14 @@
 
     // ---- mapa de luz ----
     lg.globalCompositeOperation = 'source-over'; lg.globalAlpha = 1;
-    const a = game.amb, pw = 0.35 + 0.65 * game.power;
-    const ak = o.cam ? 2.1 : 1;
+    const a = o.amb || game.amb, pw = 0.35 + 0.65 * game.power;
+    const ak = o.cam ? Math.min(2.1, 150 / Math.max(a[0], a[1], a[2], 1)) : 1;
     lg.fillStyle = `rgb(${a[0] * pw * ak | 0},${a[1] * pw * ak | 0},${a[2] * pw * ak | 0})`;
-    lg.fillRect(0, 0, GW, GH);
+    lg.fillRect(0, 0, VW, VH);
     lg.globalCompositeOperation = 'lighter';
     for (const l of D.lights) {
       const lx = l.x - cx, ly = l.y - cy, R = l.r * 2.4;
-      if (l.i <= 0.01 || lx < -R || ly < -R || lx > GW + R || ly > GH + R) continue;
+      if (l.i <= 0.01 || lx < -R || ly < -R || lx > VW + R || ly > VH + R) continue;
       lg.globalAlpha = l.i;
       if (l.clip) { lg.save(); lg.beginPath(); lg.rect(l.clip[0] - cx, l.clip[1] - cy, l.clip[2], l.clip[3]); lg.clip(); }
       lg.drawImage(glow(l.c), lx - R / 2, ly - R / 2, R, R);
@@ -725,7 +727,7 @@
     }
     lg.globalCompositeOperation = 'source-over';
     lg.globalAlpha = 0.82;
-    lg.drawImage(outsideC, cx, cy, GW, GH, 0, 0, GW, GH);
+    lg.drawImage(outsideC, cx, cy, VW, VH, 0, 0, VW, VH);
     lg.globalAlpha = 1;
     g.globalCompositeOperation = 'multiply';
     g.drawImage(lightC, 0, 0);
@@ -734,7 +736,7 @@
     g.globalCompositeOperation = 'lighter';
     for (const l of D.lights) {
       const lx = l.x - cx, ly = l.y - cy, R = l.r * 1.3;
-      if (l.i <= 0.01 || lx < -R || ly < -R || lx > GW + R || ly > GH + R) continue;
+      if (l.i <= 0.01 || lx < -R || ly < -R || lx > VW + R || ly > VH + R) continue;
       g.globalAlpha = 0.2 * l.i;
       g.drawImage(glow(l.c), lx - R / 2, ly - R / 2, R, R);
     }
@@ -1253,8 +1255,8 @@
     }
   }
   // painel do mapa das câmeras (planta enviada)
-  const CMAP = { x: GW - 160, y: GH - 92, w: 154, h: Math.round(154 * 768 / 1376) };
-  const camBtn = c => [Math.round(CMAP.x + c.x * CMAP.w / MW) - 5, Math.round(CMAP.y + c.y * CMAP.h / MH) - 3, 11, 7];
+  const CMAP = { x: GW - 146, y: GH - 82, w: 140, h: Math.round(140 * 768 / 1376) };
+  const camBtn = c => [Math.round(CMAP.x + (c.ix || c.x) * CMAP.w / MW) - 5, Math.round(CMAP.y + (c.iy || c.y) * CMAP.h / MH) - 3, 11, 7];
   function setCam(i) { if (i === sec.cam) return; sec.cam = (i + Wd.cameras.length) % Wd.cameras.length; sec.camStatic = 0.3; Sfx.camSwitch(); }
   function updateCams() {
     if (consume('escape') || consume('s') || consume(' ') || consume('arrowdown') || consume('c')) { sec.cams = false; Sfx.camSwitch(); return; }
@@ -1302,11 +1304,24 @@
     });
   }
 
+  let camC = null;
   function drawCams() {
     const c = Wd.cameras[sec.cam];
-    const cx = Math.round(clamp(c.x - GW / 2, 0, MW - GW)), cy = Math.round(clamp(c.y - GH / 2, 0, MH - GH));
     if (game.powered) {
-      drawScene(cx, cy, { flash: false, cam: true });
+      // renderiza a sala inteira numa área maior e reduz para a tela
+      const vw = c.w || GW, vh = Math.round(vw * 9 / 16);
+      const cx = Math.round(clamp(c.x - vw / 2, 0, MW - vw)), cy = Math.round(clamp(c.y - vh / 2, 0, MH - vh));
+      const rm = roomAt(c.x, c.y);
+      const amb = rm ? [34 + rm.rgb[0] * rm.amb * 3, 28 + rm.rgb[1] * rm.amb * 3, 54 + rm.rgb[2] * rm.amb * 3] : game.amb;
+      VW = vw; VH = vh; setRes(vw, vh);
+      drawScene(cx, cy, { flash: false, cam: true, amb });
+      if (!camC) camC = document.createElement('canvas');
+      if (camC.width !== vw || camC.height !== vh) { camC.width = vw; camC.height = vh; }
+      const cc = camC.getContext('2d'); cc.clearRect(0, 0, vw, vh); cc.drawImage(buf, 0, 0);
+      VW = GW; VH = GH; setRes(GW, GH);
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      g.drawImage(camC, 0, 0, vw, vh, 0, 0, GW, GH);
+      g.imageSmoothingEnabled = false;
       // filtro de câmera de segurança
       g.globalCompositeOperation = 'saturation'; g.globalAlpha = 0.8; g.fillStyle = '#808080'; g.fillRect(0, 0, GW, GH);
       g.globalCompositeOperation = 'multiply'; g.globalAlpha = 1; g.fillStyle = '#c8f4d4'; g.fillRect(0, 0, GW, GH);
@@ -1343,6 +1358,7 @@
       tinyNum(cm.n, x + (cm.n > 9 ? 2 : 4), y + 1, sel ? '#002010' : '#c8ffd8');
     });
     text(isTouch ? 'SAIR' : 'ESC SAIR', 10, GH - 14, '#7a8a7f');
+    if (game.powered) energyHUD(10, 36, 'left');
     if (!isTouch) text('1-9 / SETAS', 10, GH - 26, '#5a6a5f');
     post.fade = 1;
   }
