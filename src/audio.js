@@ -1,0 +1,249 @@
+// Áudio 100% sintetizado com WebAudio (chuva, vento, trovão, zumbido de neon,
+// ambiente interno, passos, rangidos, bipes de fliperama...). Sem arquivos.
+window.Sfx = (() => {
+  let ac, master, comp, verb, verbIn, ready = false;
+  const bufs = {};
+  const loops = {};
+
+  function noise(type, sec = 3) {
+    const len = ac.sampleRate * sec, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+    let last = 0, b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      if (type === 'white') d[i] = w;
+      else if (type === 'brown') { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
+      else { b0 = 0.997 * b0 + 0.029 * w; b1 = 0.985 * b1 + 0.032 * w; b2 = 0.95 * b2 + 0.048 * w; d[i] = (b0 + b1 + b2 + w * 0.05) * 0.6; }
+    }
+    return b;
+  }
+
+  function impulse(sec, decay) {
+    const len = ac.sampleRate * sec, b = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = b.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return b;
+  }
+
+  function init() {
+    if (ready) return;
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -18; comp.ratio.value = 4;
+    master = ac.createGain(); master.gain.value = 0.9;
+    master.connect(comp); comp.connect(ac.destination);
+    verb = ac.createConvolver(); verb.buffer = impulse(3.2, 2.6);
+    verbIn = ac.createGain(); verbIn.gain.value = 0.6;
+    verbIn.connect(verb); verb.connect(master);
+    bufs.white = noise('white'); bufs.brown = noise('brown', 4); bufs.pink = noise('pink', 4);
+    ready = true;
+  }
+
+  function src(buf, loop = true) {
+    const s = ac.createBufferSource(); s.buffer = buf; s.loop = loop; return s;
+  }
+
+  function loopNoise(name, type, ftype, freq, q, gain, wet = 0) {
+    if (loops[name]) return loops[name];
+    const s = src(bufs[type]);
+    const f = ac.createBiquadFilter(); f.type = ftype; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain(); g.gain.value = 0;
+    s.connect(f); f.connect(g); g.connect(master);
+    if (wet) { const w = ac.createGain(); w.gain.value = wet; g.connect(w); w.connect(verbIn); }
+    s.start(0, Math.random() * 2);
+    g.gain.linearRampToValueAtTime(gain, ac.currentTime + 2);
+    return (loops[name] = { s, f, g, base: gain });
+  }
+
+  function stopLoop(name, t = 1.5) {
+    const l = loops[name]; if (!l) return;
+    l.g.gain.cancelScheduledValues(ac.currentTime);
+    l.g.gain.setValueAtTime(l.g.gain.value, ac.currentTime);
+    l.g.gain.linearRampToValueAtTime(0, ac.currentTime + t);
+    setTimeout(() => { try { l.s.stop(); } catch (e) {} }, t * 1000 + 100);
+    if (l.oscs) setTimeout(() => l.oscs.forEach(o => { try { o.stop(); } catch (e) {} }), t * 1000 + 100);
+    delete loops[name];
+  }
+
+  function exterior() {
+    if (!ready) return;
+    loopNoise('rain', 'white', 'bandpass', 2600, 0.5, 0.10);
+    loopNoise('rainLow', 'pink', 'lowpass', 900, 0.7, 0.16);
+    const w = loopNoise('wind', 'brown', 'lowpass', 380, 1.2, 0.22);
+    const lfo = ac.createOscillator(), lg = ac.createGain();
+    lfo.frequency.value = 0.09; lg.gain.value = 180; lfo.connect(lg); lg.connect(w.f.frequency); lfo.start();
+    w.oscs = [lfo];
+    // zumbido do letreiro
+    const g = ac.createGain(); g.gain.value = 0;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 240; f.Q.value = 2;
+    const o1 = ac.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 120;
+    const o2 = ac.createOscillator(); o2.type = 'square'; o2.frequency.value = 60;
+    const g2 = ac.createGain(); g2.gain.value = 0.3;
+    o1.connect(f); o2.connect(g2); g2.connect(f); f.connect(g); g.connect(master);
+    o1.start(); o2.start();
+    loops.buzz = { g, oscs: [o1, o2], s: o1, base: 0.05 };
+  }
+
+  function buzz(level) {
+    const l = loops.buzz; if (!l) return;
+    l.g.gain.setTargetAtTime(level * 0.06, ac.currentTime, 0.01);
+  }
+
+  function interior() {
+    if (!ready) return;
+    ['rain', 'rainLow', 'wind', 'buzz'].forEach(n => stopLoop(n, 2.5));
+    loopNoise('rainIn', 'pink', 'lowpass', 300, 0.8, 0.05);
+    loopNoise('hvac', 'brown', 'lowpass', 140, 1, 0.18);
+    loopNoise('air', 'pink', 'bandpass', 700, 0.4, 0.015, 0.4);
+    // drone grave
+    const g = ac.createGain(); g.gain.value = 0;
+    const oscs = [55, 55.35, 82.4, 110.2].map((fr, i) => {
+      const o = ac.createOscillator(); o.type = i < 2 ? 'sine' : 'triangle'; o.frequency.value = fr;
+      const og = ac.createGain(); og.gain.value = i < 2 ? 0.5 : 0.08;
+      o.connect(og); og.connect(g); o.start(); return o;
+    });
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 300;
+    g.disconnect(); g.connect(f); f.connect(master);
+    g.gain.linearRampToValueAtTime(0.09, ac.currentTime + 4);
+    loops.drone = { g, oscs, s: oscs[0] };
+    // zumbido fluorescente
+    const hg = ac.createGain(); hg.gain.value = 0;
+    const ho = ac.createOscillator(); ho.type = 'sawtooth'; ho.frequency.value = 120;
+    const hf = ac.createBiquadFilter(); hf.type = 'bandpass'; hf.frequency.value = 360; hf.Q.value = 3;
+    ho.connect(hf); hf.connect(hg); hg.connect(master); ho.start();
+    loops.hum = { g: hg, oscs: [ho], s: ho };
+  }
+
+  function setHum(v) { if (loops.hum) loops.hum.g.gain.setTargetAtTime(v * 0.025, ac.currentTime, 0.1); }
+  function setDrone(v) { if (loops.drone) loops.drone.g.gain.setTargetAtTime(0.09 * v, ac.currentTime, 0.4); }
+
+  function env(node, t, a, peak, d) {
+    node.gain.setValueAtTime(0.0001, t);
+    node.gain.exponentialRampToValueAtTime(peak, t + a);
+    node.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
+  }
+
+  function burst(type, ftype, freq, q, peak, a, d, wet = 0.3, rate = 1) {
+    if (!ready) return;
+    const t = ac.currentTime;
+    const s = src(bufs[type], false); s.playbackRate.value = rate;
+    const f = ac.createBiquadFilter(); f.type = ftype; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain();
+    s.connect(f); f.connect(g); g.connect(master);
+    if (wet) { const w = ac.createGain(); w.gain.value = wet; g.connect(w); w.connect(verbIn); }
+    env(g, t, a, peak, d);
+    s.start(t, Math.random() * 1.5, a + d + 0.1);
+    return { f, t };
+  }
+
+  function thunder() {
+    if (!ready) return;
+    const r = burst('brown', 'lowpass', 260, 0.7, 1.2, 0.05, 4.5, 0.4);
+    r.f.frequency.setValueAtTime(900, r.t);
+    r.f.frequency.exponentialRampToValueAtTime(120, r.t + 3);
+    setTimeout(() => burst('brown', 'lowpass', 180, 0.7, 0.7, 0.2, 3, 0.5), 450);
+  }
+
+  function step(surface, run) {
+    const v = run ? 1.3 : 1;
+    if (surface === 'tile') burst('white', 'bandpass', 2400 + Math.random() * 600, 2.5, 0.12 * v, 0.003, 0.07, 0.35);
+    else if (surface === 'wood') burst('white', 'bandpass', 700 + Math.random() * 200, 2, 0.2 * v, 0.004, 0.09, 0.35);
+    else if (surface === 'metal') burst('white', 'bandpass', 1500 + Math.random() * 300, 6, 0.18 * v, 0.002, 0.12, 0.5);
+    else burst('white', 'bandpass', 1100 + Math.random() * 400, 1.6, 0.09 * v, 0.004, 0.06, 0.3);
+  }
+
+  function click() {
+    burst('white', 'highpass', 3000, 1, 0.25, 0.001, 0.025, 0.1);
+    setTimeout(() => burst('white', 'bandpass', 1800, 3, 0.15, 0.001, 0.03, 0.1), 40);
+  }
+
+  function zap() {
+    if (!ready) return;
+    const t = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(90, t);
+    o.frequency.linearRampToValueAtTime(40, t + 0.4);
+    const g = ac.createGain(); o.connect(g); g.connect(master);
+    const w = ac.createGain(); w.gain.value = 0.4; g.connect(w); w.connect(verbIn);
+    env(g, t, 0.005, 0.12, 0.45); o.start(t); o.stop(t + 0.5);
+    burst('white', 'bandpass', 4000, 1, 0.15, 0.002, 0.2, 0.2);
+  }
+
+  function creak() {
+    if (!ready) return;
+    const t = ac.currentTime, base = 140 + Math.random() * 200;
+    const g = ac.createGain(); g.connect(master);
+    const w = ac.createGain(); w.gain.value = 1.4; g.connect(w); w.connect(verbIn);
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = base * 3; f.Q.value = 8; f.connect(g);
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(base, t); o.frequency.linearRampToValueAtTime(base * (0.7 + Math.random() * 0.6), t + 1.2);
+    const am = ac.createOscillator(), amg = ac.createGain(); am.frequency.value = 18 + Math.random() * 20; amg.gain.value = 0.5;
+    am.connect(amg); amg.connect(g.gain);
+    o.connect(f);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.02, t + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+    o.start(t); am.start(t); o.stop(t + 1.5); am.stop(t + 1.5);
+  }
+
+  function clank() {
+    burst('white', 'bandpass', 600 + Math.random() * 900, 12, 0.12, 0.002, 0.6, 1.5, 0.6);
+  }
+
+  // pequenas melodias "attract mode" de fliperamas abandonados
+  function blip(vol = 1) {
+    if (!ready) return;
+    const scales = [[0, 3, 7, 10, 12], [0, 4, 7, 11, 14], [0, 2, 3, 7, 8]];
+    const sc = scales[(Math.random() * scales.length) | 0];
+    const root = 220 * Math.pow(2, ((Math.random() * 12) | 0) / 12);
+    const t0 = ac.currentTime, n = 4 + ((Math.random() * 6) | 0), dur = 0.09 + Math.random() * 0.05;
+    const g = ac.createGain(); g.gain.value = 0.02 * vol;
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800;
+    g.connect(f); f.connect(master);
+    const w = ac.createGain(); w.gain.value = 1.2; f.connect(w); w.connect(verbIn);
+    const o = ac.createOscillator(); o.type = 'square';
+    for (let i = 0; i < n; i++) {
+      const st = sc[(Math.random() * sc.length) | 0] + (Math.random() < 0.3 ? 12 : 0);
+      o.frequency.setValueAtTime(root * Math.pow(2, st / 12) * (1 + (Math.random() - 0.5) * 0.01), t0 + i * dur);
+    }
+    o.connect(g); o.start(t0); o.stop(t0 + n * dur);
+  }
+
+  function whoosh() {
+    const r = burst('pink', 'bandpass', 300, 1.5, 0.5, 0.4, 1.0, 0.8);
+    if (r) { r.f.frequency.setValueAtTime(200, r.t); r.f.frequency.exponentialRampToValueAtTime(1600, r.t + 0.6); r.f.frequency.exponentialRampToValueAtTime(150, r.t + 1.4); }
+  }
+
+  function rattle() {
+    for (let i = 0; i < 5; i++) setTimeout(() => burst('white', 'bandpass', 500 + Math.random() * 300, 5, 0.3, 0.002, 0.08, 0.5), i * 70 + Math.random() * 30);
+  }
+
+  function heartbeat() {
+    if (!ready) return;
+    [0, 0.22].forEach((d, i) => {
+      const t = ac.currentTime + d;
+      const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(60, t); o.frequency.exponentialRampToValueAtTime(35, t + 0.15);
+      const g = ac.createGain(); o.connect(g); g.connect(master);
+      env(g, t, 0.01, i ? 0.25 : 0.35, 0.18); o.start(t); o.stop(t + 0.25);
+    });
+  }
+
+  function riser(sec) {
+    if (!ready) return;
+    const t = ac.currentTime;
+    const g = ac.createGain(); g.connect(master);
+    const w = ac.createGain(); w.gain.value = 0.8; g.connect(w); w.connect(verbIn);
+    const oscs = [41.2, 41.7, 61.7].map(fr => {
+      const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(fr, t);
+      o.frequency.exponentialRampToValueAtTime(fr * 1.5, t + sec);
+      const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(120, t); f.frequency.exponentialRampToValueAtTime(900, t + sec);
+      o.connect(f); f.connect(g); o.start(t); o.stop(t + sec + 0.2); return o;
+    });
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.08, t + sec * 0.95);
+    g.gain.linearRampToValueAtTime(0.0001, t + sec + 0.15);
+    return oscs;
+  }
+
+  function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
+
+  return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume, get ready() { return ready; } };
+})();
