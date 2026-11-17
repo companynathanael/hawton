@@ -47,7 +47,7 @@ Atalhos de teste: `?play` vai direto pro jogo, `?cut` vai direto pra cutscene.
 - `src/audio.js` — sons sintetizados
 - `src/sprite.js` — sprite do jogador desenhado em código
 - `assets/map.jpg` — planta original (usada no mapa da tecla M)
-- `assets/map_clean.png` — planta sem os rótulos (usada no jogo), gerada por `tools/clean_map.py`
+- `assets/map_clean.jpg` — planta sem os rótulos (usada no jogo), gerada por `tools/clean_map.py`
 - `assets/facade.jpg` — fachada da cutscene
 
 Para ajustar colisão, edite os retângulos em `src/mapdata.js` e aperte **K** no jogo para conferir.

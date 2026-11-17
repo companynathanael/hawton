@@ -1,4 +1,4 @@
-"""Gera assets/map_clean.png: a planta sem os rótulos de texto (usada durante o jogo).
+"""Gera assets/map_clean.jpg: a planta sem os rótulos de texto (usada durante o jogo).
 Para cada rótulo, procura um trecho vizinho com a mesma textura (carpete estrelado,
 azulejo, madeira...) e copia por cima do texto com bordas suavizadas.
 Uso: python3 tools/clean_map.py   (requer opencv-python-headless e numpy)
@@ -111,4 +111,4 @@ for (x0, y0, x1, y1, o) in BOXES:
     out[y0:y1, x0:x1] = (region * (1 - a) + src * a).astype(np.uint8)
     print((x0, y0, x1, y1), 'offset', bo, 'custo', round(float(best), 1))
 
-cv2.imwrite('assets/map_clean.png', out)
+cv2.imwrite('assets/map_clean.jpg', out, [cv2.IMWRITE_JPEG_QUALITY, 95])

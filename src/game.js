@@ -32,7 +32,7 @@
   // ---------- recursos ----------
   const img = {};
   let loaded = 0;
-  const toLoad = [['map', 'assets/map.jpg'], ['clean', 'assets/map_clean.png'], ['facade', 'assets/facade.jpg']];
+  const toLoad = [['map', 'assets/map.jpg'], ['clean', 'assets/map_clean.jpg'], ['facade', 'assets/facade.jpg']];
   toLoad.forEach(([k, src]) => {
     const im = new Image();
     im.onload = () => { loaded++; };
