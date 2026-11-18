@@ -7,11 +7,11 @@ const Wd = window.World, T = 8, GW = 384, GH = 216;
 // posição [x, y do mapa, altura] e alvo [x, y do mapa, altura] de cada câmera (por número)
 const CAMS = {
   1: { room: 'lobby', pos: [600, 726, 36], look: [630, 590, 8] },
-  2: { room: 'arcade1', pos: [180, 282, 38], look: [340, 150, 8], amb: 0.5, li: 1.6 },
-  3: { room: 'arcade2', pos: [196, 470, 36], look: [196, 320, 8], amb: 0.5 },
-  4: { room: 'arcade3', pos: [232, 678, 36], look: [232, 520, 8], amb: 0.5 },
-  5: { room: 'arcade4', pos: [460, 542, 38], look: [460, 310, 8], amb: 0.5 },
-  6: { room: 'arcade5', pos: [760, 486, 38], look: [760, 330, 8], amb: 0.5 },
+  2: { room: 'arcade1', gamer: true, pos: [180, 282, 38], look: [340, 150, 8], amb: 0.5, li: 1.6 },
+  3: { room: 'arcade2', gamer: true, pos: [196, 470, 36], look: [196, 320, 8], amb: 0.5 },
+  4: { room: 'arcade3', gamer: true, pos: [232, 678, 36], look: [232, 520, 8], amb: 0.5 },
+  5: { room: 'arcade4', gamer: true, pos: [460, 542, 38], look: [460, 310, 8], amb: 0.5 },
+  6: { room: 'arcade5', gamer: true, pos: [760, 486, 38], look: [760, 330, 8], amb: 0.5 },
   7: { room: 'kitchen', pos: [700, 306, 36], look: [770, 120, 8], amb: 0.3, li: 1.0 },
   8: { room: 'hallA', pos: [1124, 168, 38], look: [1124, 50, 8], amb: 0.45 },
   9: { room: 'hallB', pos: [1056, 486, 38], look: [1056, 330, 8], amb: 0.45 },
@@ -77,7 +77,7 @@ function build(cfg) {
   const inRoom = (tx, ty) => allRects.some(([x0, y0, x1, y1]) => tx >= x0 && tx <= x1 && ty >= y0 && ty <= y1);
   const def = { rects: allRects };
   const H = 44;
-  const dyn = { lights: [], screens: [], doors: [] };
+  const dyn = { lights: [], screens: [], doors: [], neons: [], pools: [] };
   // chão e teto
   for (const [x0, y0, x1, y1] of def.rects) {
     const w = (x1 - x0 + 1) * T, h = (y1 - y0 + 1) * T;
@@ -150,8 +150,8 @@ function build(cfg) {
       m.rotation.y = rot;
       m.position.set(bx, 15, f === 'left' || f === 'right' ? o.y + o.h / 2 + 2 : o.y + o.h - 5); scene.add(m);
       let pl = null;
-      if (dyn.screens.filter(s => s.pl).length < 10) {
-        pl = new THREE.PointLight(o.c.scr, 0, 40, 1);
+      if (dyn.screens.filter(s => s.pl).length < (cfg.gamer ? 20 : 10)) {
+        pl = new THREE.PointLight(o.c.scr, 0, cfg.gamer ? 55 : 40, 1);
         pl.position.set(m.position.x + Math.sin(rot) * 10, 14, m.position.z + Math.cos(rot) * 10); scene.add(pl);
       }
       dyn.screens.push({ mat: fm, pl, o });
@@ -171,7 +171,7 @@ function build(cfg) {
     m.position.set(bx, height / 2, o.y + th / 2 + fh * 0.3); scene.add(m);
   }
   // luzes do teto (seguem os circuitos do jogo)
-  scene.add(new THREE.AmbientLight('#8a80b0', cfg.amb ?? 0.32));
+  scene.add(new THREE.AmbientLight('#8a80b0', cfg.gamer ? 0.35 : (cfg.amb ?? 0.32)));
   const inR = (rm, l) => rm.rects.some(([x0, y0, x1, y1]) => l.x >= x0 * T && l.x < (x1 + 1) * T && l.y >= y0 * T && l.y < (y1 + 1) * T);
   const ls = [];
   rooms.forEach((rm, k) => ls.push(...Wd.lights.filter(l => !l.cab && inR(rm, l)).sort((a, b) => b.r - a.r).slice(0, k ? 4 : 14)));
@@ -181,12 +181,49 @@ function build(cfg) {
     if (l.r > 40) { lamp = new THREE.Mesh(new THREE.PlaneGeometry(14, 4), new THREE.MeshBasicMaterial({ color: '#e8f0ff' })); lamp.rotation.x = Math.PI / 2; lamp.position.set(l.x, H - 0.5, l.y); scene.add(lamp); }
     dyn.lights.push({ pl, lamp, l, k: cfg.li ?? 1.3 });
   }
+  if (cfg.gamer) {
+    // brilhos "gamer": faixas de neon nas paredes e poças de luz das telas
+    const NEON = ['#b04aff', '#ffd23a', '#ff8a2a', '#ff4ad0', '#3ae8ff', '#7a4aff'];
+    let k = 0;
+    for (const [x0, y0, x1, y1] of main.rects) {
+      const segs = [[x0 * T, y0 * T + 0.6, (x1 + 1) * T, y0 * T + 0.6, 0, 1], [x0 * T, (y1 + 1) * T - 0.6, (x1 + 1) * T, (y1 + 1) * T - 0.6, 0, -1], [x0 * T + 0.6, y0 * T, x0 * T + 0.6, (y1 + 1) * T, 1, 1], [(x1 + 1) * T - 0.6, y0 * T, (x1 + 1) * T - 0.6, (y1 + 1) * T, 1, -1]];
+      for (const [ax, az, bx, bz, vert, inward] of segs) {
+        const len = vert ? bz - az : bx - ax, n = Math.max(1, Math.round(len / 48)), sl = len / n;
+        for (let i = 0; i < n; i++) {
+          const c = NEON[k % NEON.length], cxp = vert ? ax : ax + sl * (i + 0.5), czp = vert ? az + sl * (i + 0.5) : az;
+          const mats = [];
+          for (const [hy, th] of [[H - 8, 1.6], [1.2, 1.2]]) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(vert ? 0.8 : sl - 6, th, vert ? sl - 6 : 0.8), new THREE.MeshBasicMaterial({ color: c }));
+            m.position.set(cxp, hy, czp); scene.add(m);
+            const halo = new THREE.Mesh(new THREE.BoxGeometry(vert ? 0.6 : sl - 2, th * 4, vert ? sl - 2 : 0.6), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+            halo.position.copy(m.position); scene.add(halo);
+            mats.push(m.material, halo.material);
+          }
+          let pl = null;
+          if (k % 2 === 0 || n === 1) { pl = new THREE.PointLight(c, 0, 110, 1); pl.position.set(cxp + (vert ? 6 * inward : 0), H - 12, czp + (vert ? 0 : 6 * inward)); scene.add(pl); }
+          dyn.neons.push({ mats, pl, ph: k * 0.9 });
+          k++;
+        }
+      }
+    }
+    for (const o of Wd.objects) {
+      if (o.kind !== 'cab') continue;
+      const bx = o.x + o.w / 2, by = o.y + o.h - 1;
+      if (!main.rects.some(([x0, y0, x1, y1]) => bx / T >= x0 && bx / T < x1 + 1 && by / T >= y0 && by / T < y1 + 1)) continue;
+      const f = o.facing || 'down', rot = { down: 0, up: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 }[f] ?? 0;
+      const z0 = f === 'left' || f === 'right' ? o.y + o.h / 2 + 2 : o.y + o.h - 5;
+      const pool = new THREE.Mesh(new THREE.CircleGeometry(12, 16), new THREE.MeshBasicMaterial({ color: o.c.scr, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
+      pool.rotation.x = -Math.PI / 2; pool.position.set(bx + Math.sin(rot) * 11, 0.3, z0 + Math.cos(rot) * 11); scene.add(pool);
+      dyn.pools.push(pool);
+    }
+  }
   return { scene, cam, dyn };
 }
 
 const cache = {};
 window.Cam3D = {
   ready: true,
+  isGamer: n => !!(CAMS[n] && CAMS[n].gamer),
   canvas: renderer.domElement,
   render(n, st) {
     const cfg = CAMS[n]; if (!cfg) return null;
@@ -199,8 +236,14 @@ window.Cam3D = {
     for (const S of s.dyn.screens) {
       const on = st.powered ? 1 : 0, play = S.o.playT > 0 ? (Math.floor(st.t * 12) % 2 ? 1.6 : 0.8) : 1;
       S.mat.emissiveIntensity = 0.9 * on * play;
-      if (S.pl) S.pl.intensity = 0.9 * on * play;
+      if (S.pl) S.pl.intensity = (cfg.gamer ? 1.5 : 0.9) * on * play;
     }
+    for (const N of s.dyn.neons) {
+      const v = st.powered ? (0.85 + 0.15 * Math.sin(st.t * 2.2 + N.ph)) * (Math.random() < 0.01 ? 0.3 : 1) : 0;
+      for (const m of N.mats) { if (m.transparent) m.opacity = 0.4 * v; else m.color.set(m.userData.c || (m.userData.c = '#' + m.color.getHexString())).multiplyScalar(v); }
+      if (N.pl) N.pl.intensity = 2.3 * v;
+    }
+    for (const p of s.dyn.pools) p.material.opacity = st.powered ? 0.18 + 0.06 * Math.sin(st.t * 3 + p.position.x) : 0;
     for (const D of s.dyn.doors) D.mesh.visible = !D.d || D.d.anim < 0.5;
     renderer.render(s.scene, s.cam);
     return renderer.domElement;

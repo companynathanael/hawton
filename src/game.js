@@ -123,6 +123,23 @@
     const rm = D.rooms.find(r => inR(l.x, l.y, r.r));
     l.clip = rm ? [rm.r[0] - 2, rm.r[1] - 2, rm.r[2] + 4, rm.r[3] + 4] : null;
   });
+  // gráficos novos: perfil das luzes por sala
+  const GFX_ON = !!window.Gfx && !/[?&]lowgfx\b/.test(location.search);
+  const ARC_ROOMS = /^(arcade[1-5]|lobby)$/, DIM_ROOMS = /^(kitchen|hallA|hallB)$/;
+  const mixHex = (a, b, k) => { const x = hex(a), y = hex(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * k).toString(16).padStart(2, '0')).join(''); };
+  D.lights.forEach(l => {
+    const rm = D.rooms.find(r => inR(l.x, l.y, r.r));
+    l.room = rm ? rm.id : null; l.gi = 1; l.ph2 = Math.random() * 6.28;
+    l.kind = l.cab ? 'cab' : Wd.doors.some(d => d.neon && Math.abs(d.cx - l.x) < 2 && Math.abs(d.cy - l.y) < 2) ? 'neon' : 'room';
+    if (!GFX_ON) return;
+    if (l.kind === 'neon') { l.r = 10; l.gi = 0.6; }
+    else if (ARC_ROOMS.test(l.room || '')) {
+      if (l.kind === 'cab') { l.r *= 1.7; l.gi = 1.25; }
+      else if (l.g === 'main') { l.c = mixHex(l.c, '#d8d0e8', 0.8); l.gi = 0.35; }
+    } else if (DIM_ROOMS.test(l.room || '') && l.g === 'main') l.gi = 0.6;
+    else if (/^(c1|c5|c6|v|mid|svc|stairs)$/.test(l.room || '') && l.g === 'main') { l.c = mixHex(l.c, '#d8d0e8', 0.65); l.gi = 0.6; }
+    l.rgb = hex(l.c).map(v => v / 255);
+  });
   // circuitos: emg = emergência (sempre acesa), gen = gerador, main = rede principal
   D.lights.forEach(l => {
     if (!l.g) {
@@ -449,7 +466,9 @@
   const motes = [];
   const puffs = [];
 
+  let gfxReady = false;
   function startGame() {
+    if (GFX_ON && !gfxReady) { gfxReady = true; window.Gfx.init(Wd); }
     state = 'game';
     setRes(GW, GH);
     Sfx.interior();
@@ -483,6 +502,7 @@
     if (!game.ui && !sec.seated && (consume('m') || consume('tab'))) { game.map = !game.map; Sfx.click(); }
     if (!game.intro && game.t > 2.6) { game.intro = true; if (!game.powered) showMsg('Está tudo apagado.'); }
     if (consume('k') || consume('`')) game.debug = !game.debug;
+    if (consume('g') && GFX_ON) { game.gfx = game.gfx === false; showMsg(game.gfx === false ? 'Gráficos: simples' : 'Gráficos: altos'); }
 
     // lanterna
     if (!game.ui && !sec.seated && consume('f')) { P.flash = !P.flash; Sfx.click(); }
@@ -606,7 +626,8 @@
         l.lit = true;
         if (game.t > 3 && game.lampSndT <= 0 && Math.hypot(l.x - P.x, l.y - P.y) < 220) { Sfx.lampOn(); game.lampSndT = 0.08; }
       }
-      l.i = (l.off > 0 ? 0.08 : wob) * lv * (l.g === 'main' ? game.power : 1);
+      l.i = (l.off > 0 ? 0.08 : wob) * lv * (l.g === 'main' ? game.power : 1) * l.gi;
+      if (GFX_ON && l.kind === 'cab') l.i *= 0.8 + 0.2 * Math.sin(game.t * 1.7 + l.ph2 * 3) * Math.sin(game.t * 0.6 + l.ph2);
     }
     game.lampSndT -= dt;
     if (game.gen) {
@@ -937,15 +958,30 @@
     lg.globalAlpha = 0.82;
     lg.drawImage(outsideC, cx, cy, VW, VH, 0, 0, VW, VH);
     lg.globalAlpha = 1;
-    g.globalCompositeOperation = 'multiply';
-    g.drawImage(lightC, 0, 0);
+    let composed = null;
+    if (GFX_ON && !o.cam && window.Gfx.ok && game.gfx !== false) {
+      const vl = [];
+      for (const l of D.lights) {
+        if (l.i <= 0.03 || !l.rgb) continue;
+        const lx = l.x - cx, ly = l.y - cy, R = l.r * 2.6;
+        if (lx < -R || ly < -R || lx > VW + R || ly > VH + R) continue;
+        vl.push({ x: lx, y: ly, r: l.r, rgb: l.rgb, k: l.i, s: l.i * l.r / (40 + Math.hypot(lx - VW / 2, ly - VH / 2)) });
+      }
+      vl.sort((a, b) => b.s - a.s);
+      if (flashOn > 0) vl.unshift({ x: hx + Math.cos(P.aim) * 30, y: hy + Math.sin(P.aim) * 30, r: 50, rgb: [1, 0.9, 0.75], k: 0.5 * flashOn });
+      const rid = game.room ? game.room.id : '';
+      const dim = DIM_ROOMS.test(rid);
+      composed = window.Gfx.compose(buf, lightC, cx, cy, vl, { px, py, time: game.t, expo: dim ? 1.0 : 1.75, specK: dim ? 0.45 : 1.0, emK: dim ? 0.45 : 0.85 });
+    }
+    if (composed) { g.globalCompositeOperation = 'copy'; g.drawImage(composed, 0, 0); g.globalCompositeOperation = 'source-over'; }
+    else { g.globalCompositeOperation = 'multiply'; g.drawImage(lightC, 0, 0); }
 
     // ---- brilho aditivo ----
     g.globalCompositeOperation = 'lighter';
     for (const l of D.lights) {
       const lx = l.x - cx, ly = l.y - cy, R = l.r * 1.3;
       if (l.i <= 0.01 || lx < -R || ly < -R || lx > VW + R || ly > VH + R) continue;
-      g.globalAlpha = 0.2 * l.i;
+      g.globalAlpha = (composed ? 0.12 : 0.2) * l.i;
       g.drawImage(glow(l.c), lx - R / 2, ly - R / 2, R, R);
     }
     if (flashOn > 0) {
@@ -1917,8 +1953,9 @@
     }
     if (game.powered) {
       // filtro de câmera de segurança
-      g.globalCompositeOperation = 'saturation'; g.globalAlpha = 0.8; g.fillStyle = '#808080'; g.fillRect(0, 0, GW, GH);
-      g.globalCompositeOperation = 'multiply'; g.globalAlpha = 1; g.fillStyle = '#c8f4d4'; g.fillRect(0, 0, GW, GH);
+      const gamer = !!(c3 && window.Cam3D && window.Cam3D.isGamer && window.Cam3D.isGamer(c.n));
+      g.globalCompositeOperation = 'saturation'; g.globalAlpha = gamer ? 0.35 : 0.8; g.fillStyle = '#808080'; g.fillRect(0, 0, GW, GH);
+      g.globalCompositeOperation = 'multiply'; g.globalAlpha = gamer ? 0.5 : 1; g.fillStyle = '#c8f4d4'; g.fillRect(0, 0, GW, GH);
       g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.06; g.fillStyle = '#4aff8a'; g.fillRect(0, 0, GW, GH);
       g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
       for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`; g.fillRect((Math.random() * GW) | 0, (Math.random() * GH) | 0, 1, 1); }

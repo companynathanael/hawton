@@ -3,9 +3,13 @@
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
 Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
 
+## Gráficos
+
+`src/gfx.js` refaz a iluminação do jogo 2D em WebGL: relevo por pixel (gerado da própria arte), brilho especular no piso, telas e neons emissivos, tone mapping de cinema e dithering em pixel art. As luzes respiram e os reflexos acompanham o jogador. Arcades e recepção usam o visual mais forte; cozinha e salões, mais suave. A tecla **G** alterna entre gráficos altos e simples, e `?lowgfx` desliga de vez.
+
 ## Câmeras em 3D
 
-As câmeras de segurança montam a sala de cada câmera em 3D (`src/cam3d.js`, com three.js em `src/vendor/`): chão e paredes com a arte do mapa, teto com fluorescentes, portas que abrem e fecham de verdade, fliperamas vistos de frente com a tela acesa e os outros móveis como blocos sólidos. As luzes seguem os circuitos de energia do jogo. Se o 3D não carregar, as câmeras voltam a ser 2D.
+As câmeras de segurança montam a sala de cada câmera em 3D (`src/cam3d.js`, com three.js em `src/vendor/`): chão e paredes com a arte do mapa, teto com fluorescentes, portas que abrem e fecham de verdade, fliperamas vistos de frente com a tela acesa e os outros móveis como blocos sólidos. As luzes seguem os circuitos de energia do jogo. Nas câmeras dos arcades (2 a 6) há faixas de neon roxo, amarelo, laranja, rosa e ciano e poças de luz das telas no chão. Se o 3D não carregar, as câmeras voltam a ser 2D.
 
 ## Visão por sala (opcional)
 
