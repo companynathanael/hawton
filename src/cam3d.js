@@ -59,14 +59,23 @@ function cabGlow(front) {
   return e;
 }
 const TALL = new Set(['fridge', 'vending', 'locker', 'shelf', 'claw', 'change', 'ecab', 'rack', 'boiler', 'gen', 'prize', 'transformer', 'safe', 'pipes', 'panel']);
-const BILL = new Set(['plant', 'ext', 'stanchion', 'sign', 'trash', 'bucket', 'chair', 'stool', 'speaker', 'bin', 'barrel', 'spool']);
+const BILL = new Set(['balloons', 'plant', 'ext', 'stanchion', 'sign', 'trash', 'bucket', 'chair', 'stool', 'speaker', 'bin', 'barrel', 'spool']);
 const FLAT = new Set(['mattress', 'bean', 'sack', 'gift', 'rug']);
 
 function build(cfg) {
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#05030a');
   scene.fog = new THREE.Fog('#05030a', 120, 420);
-  const def = Wd.ROOMS.find(r => r.id === cfg.room);
-  const inRoom = (tx, ty) => def.rects.some(([x0, y0, x1, y1]) => tx >= x0 && tx <= x1 && ty >= y0 && ty <= y1);
+  const main = Wd.ROOMS.find(r => r.id === cfg.room);
+  const roomOf = (tx, ty) => Wd.ROOMS.find(r => r.rects.some(([x0, y0, x1, y1]) => tx >= x0 && tx <= x1 && ty >= y0 && ty <= y1));
+  const near = (d, rm) => { const [a, b, e, f] = d.r; return rm.rects.some(([x0, y0, x1, y1]) => a >= x0 - 1 && e <= x1 + 1 && b >= y0 - 1 && f <= y1 + 1); };
+  // salas vizinhas: ligadas por porta ou encostadas (ex.: corredor e escada)
+  const rooms = [main];
+  const addRoom = r => { if (r && !rooms.includes(r) && r.id !== 'secret') rooms.push(r); };
+  for (const d of Wd.DOORS) if (d.type !== 'exit' && near(d, main)) { const [a, b, e, f] = d.r; for (let y = b - 1; y <= f + 1; y++) for (let x = a - 1; x <= e + 1; x++) addRoom(roomOf(x, y)); }
+  for (const [x0, y0, x1, y1] of main.rects) { for (let x = x0; x <= x1; x++) { addRoom(roomOf(x, y0 - 1)); addRoom(roomOf(x, y1 + 1)); } for (let y = y0; y <= y1; y++) { addRoom(roomOf(x0 - 1, y)); addRoom(roomOf(x1 + 1, y)); } }
+  const allRects = rooms.flatMap(r => r.rects);
+  const inRoom = (tx, ty) => allRects.some(([x0, y0, x1, y1]) => tx >= x0 && tx <= x1 && ty >= y0 && ty <= y1);
+  const def = { rects: allRects };
   const H = 44;
   const dyn = { lights: [], screens: [], doors: [] };
   // chão e teto
@@ -83,7 +92,7 @@ function build(cfg) {
     cm.rotation.x = Math.PI / 2; cm.position.set(x0 * T + w / 2, H, y0 * T + h / 2); scene.add(cm);
   }
   // paredes com a arte da "face" da sala
-  const fr = def.rects[0], face = crop(Wd.canvas, Math.floor((fr[0] + fr[2]) / 2) * T, fr[1] * T, 16, 8);
+  const fr = main.rects[0], face = crop(Wd.canvas, Math.floor((fr[0] + fr[2]) / 2) * T, fr[1] * T, 16, 8);
   const wc = document.createElement('canvas'); wc.width = 16; wc.height = H; const wq = wc.getContext('2d');
   wq.fillStyle = '#' + avgCol(face).multiplyScalar(0.8).getHexString(); wq.fillRect(0, 0, 16, H);
   for (let y = H - 8; y > H - 32; y -= 8) wq.drawImage(face, 0, y);
@@ -101,10 +110,13 @@ function build(cfg) {
     const m = new THREE.Mesh(wallGeo, [wallMat, wallMat, capMat, capMat, wallMat, wallMat]);
     m.position.set(tx * T + T / 2, H / 2, ty * T + T / 2); scene.add(m);
   }
-  // portas (somem quando abertas)
+  // portas (somem quando abertas) + chão da soleira
   Wd.DOORS.forEach((d, i) => {
     const [a, b, e, f] = d.r;
-    if (!def.rects.some(([x0, y0, x1, y1]) => a >= x0 - 1 && e <= x1 + 1 && b >= y0 - 1 && f <= y1 + 1)) return;
+    if (!rooms.some(r => near(d, r))) return;
+    { const w = (e - a + 1) * T, h = (f - b + 1) * T;
+      const fl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: texOf(crop(Wd.canvas, a * T, b * T, w, h)) }));
+      fl.rotation.x = -Math.PI / 2; fl.position.set(a * T + w / 2, 0.05, b * T + h / 2); scene.add(fl); }
     const horiz = (e - a) >= (f - b) && !(a === e && f > b);
     const len = horiz ? (e - a + 1) * T : (f - b + 1) * T, dh = 34;
     const c = document.createElement('canvas'); c.width = len; c.height = dh; const q = c.getContext('2d');
@@ -160,7 +172,9 @@ function build(cfg) {
   }
   // luzes do teto (seguem os circuitos do jogo)
   scene.add(new THREE.AmbientLight('#8a80b0', cfg.amb ?? 0.32));
-  const ls = Wd.lights.filter(l => !l.cab && inRoom(Math.floor(l.x / T), Math.floor(l.y / T))).sort((a, b) => b.r - a.r).slice(0, 14);
+  const inR = (rm, l) => rm.rects.some(([x0, y0, x1, y1]) => l.x >= x0 * T && l.x < (x1 + 1) * T && l.y >= y0 * T && l.y < (y1 + 1) * T);
+  const ls = [];
+  rooms.forEach((rm, k) => ls.push(...Wd.lights.filter(l => !l.cab && inR(rm, l)).sort((a, b) => b.r - a.r).slice(0, k ? 4 : 14)));
   for (const l of ls) {
     const pl = new THREE.PointLight(l.c, 0, l.r * 3.6, 1); pl.position.set(l.x, H - 6, l.y); scene.add(pl);
     let lamp = null;

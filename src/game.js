@@ -1012,6 +1012,38 @@
     }
     v.drawImage(getMask(vis.id), cx, cy, GW, GH, 0, 0, GW, GH);
     v.globalAlpha = 1;
+    // portas abertas: mostra um pedaço do cômodo do outro lado
+    {
+      const T = 8;
+      const cur = Wd.ROOMS.find(r => r.id === vis.id);
+      const inRects = (rm, tx, ty) => rm && rm.rects.some(([x0, y0, x1, y1]) => tx >= x0 && tx <= x1 && ty >= y0 && ty <= y1);
+      const roomOfT = (tx, ty) => Wd.ROOMS.find(r => inRects(r, tx, ty));
+      v.globalCompositeOperation = 'destination-out';
+      for (const d of Wd.doors) {
+        if (d.type === 'exit' || d.anim < 0.3) continue;
+        const [a, b, e, f] = d.r;
+        if (!cur.rects.some(([x0, y0, x1, y1]) => a >= x0 - 1 && e <= x1 + 1 && b >= y0 - 1 && f <= y1 + 1)) continue;
+        const sides = d.horiz ? [[0, -1], [0, 1]] : [[-1, 0], [1, 0]];
+        for (const [sx, sy] of sides) {
+          const tx = sx < 0 ? a - 1 : sx > 0 ? e + 1 : Math.round((a + e) / 2), ty = sy < 0 ? b - 1 : sy > 0 ? f + 1 : Math.round((b + f) / 2);
+          const nb = roomOfT(tx, ty);
+          if (!nb || nb.id === vis.id || nb.id === 'secret') continue;
+          const L = 64, al = Math.min(1, (d.anim - 0.3) / 0.5);
+          const x0 = a * T, y0 = b * T, x1 = (e + 1) * T, y1 = (f + 1) * T;
+          let rx, ry, rw, rh, gx0, gy0, gx1, gy1;
+          if (sy) { rx = x0 - 24; rw = x1 - x0 + 48; ry = sy < 0 ? y0 - L : y1; rh = L; gx0 = gx1 = 0; gy0 = sy < 0 ? y0 : y1; gy1 = sy < 0 ? y0 - L : y1 + L; }
+          else { ry = y0 - 24; rh = y1 - y0 + 48; rx = sx < 0 ? x0 - L : x1; rw = L; gy0 = gy1 = 0; gx0 = sx < 0 ? x0 : x1; gx1 = sx < 0 ? x0 - L : x1 + L; }
+          v.save(); v.beginPath();
+          for (const [p0, q0, p1, q1] of nb.rects) v.rect(p0 * T - cx, (q0 - 1) * T - cy, (p1 - p0 + 1) * T, (q1 - q0 + 2) * T);
+          v.rect(x0 - cx, y0 - cy, x1 - x0, y1 - y0);
+          v.clip();
+          const gr = sy ? v.createLinearGradient(0, gy0 - cy, 0, gy1 - cy) : v.createLinearGradient(gx0 - cx, 0, gx1 - cx, 0);
+          gr.addColorStop(0, `rgba(0,0,0,${0.9 * al})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          v.fillStyle = gr; v.fillRect(rx - cx, ry - cy, rw, rh); v.restore();
+        }
+      }
+      v.globalCompositeOperation = 'source-over';
+    }
     if (vis.id === 'security' && game.powered) {
       v.globalCompositeOperation = 'destination-out';
       for (const k of ['W', 'E']) {

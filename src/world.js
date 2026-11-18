@@ -513,6 +513,30 @@ window.World = (() => {
     cx = pc;
     lights.push({ x: x + w / 2, y: y + 10, r: Math.max(24, w * 0.6), c, f: 0.3, g: 'main' });
   }
+  const BAL = ['#ff4a5a', '#4aa8ff', '#ffd84f', '#7aff8a', '#d070ff', '#ff8ad0', '#ff9a3a', '#ffffff'];
+  // buquê de balões com fios presos num peso
+  function balloonBunch(x, y, n = 5, cols) {
+    const pal = cols || BAL, H = 34;
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push([x + ri(1, 14), y + ri(0, 12)]);
+    pts.sort((a, b) => a[1] - b[1]);
+    for (const [bx, by] of pts) { for (let k = by + 8; k < y + H - 3; k++) P(Math.round(bx + 3 + (x + 9 - bx - 3) * (k - by - 8) / (y + H - 3 - by - 8)), k, '#b8b8c8'); }
+    for (const [bx, by] of pts) {
+      const c = pick(pal);
+      R(bx + 1, by, 5, 1, c); R(bx, by + 1, 7, 5, c); R(bx + 1, by + 6, 5, 1, c); P(bx + 3, by + 7, shade(c, 0.7));
+      R(bx + 1, by + 1, 2, 2, shade(c, 1.6)); R(bx + 5, by + 3, 1, 3, shade(c, 0.7));
+    }
+    R(x + 7, y + H - 3, 5, 3, '#5a5a6a'); R(x + 7, y + H - 3, 5, 1, '#8a8a9a');
+    addObj({ kind: 'balloons', x, y, w: 20, h: H });
+  }
+  // arco de balões (enfileirados) — decoração no chão/palco
+  function balloonRow(x, y, len, vert) {
+    for (let i = 0; i < len; i += 5) {
+      const c = BAL[(i / 5) % 6 | 0], bx = vert ? x + (i % 10 ? 2 : 0) : x + i, by = vert ? y + i : y + (i % 10 ? 2 : 0);
+      R(bx, by, 6, 5, c); R(bx + 1, by + 1, 2, 1, shade(c, 1.6));
+    }
+  }
+  function cone(x, y) { R(x + 2, y, 2, 2, '#ff7a2a'); R(x + 1, y + 2, 4, 3, '#ff7a2a'); R(x + 1, y + 3, 4, 1, '#f0f0f0'); R(x, y + 5, 6, 2, '#3a3a40'); block(x, y + 4, 6, 3); addObj({ kind: 'sign', x, y, w: 6, h: 7 }); }
   function gift(x, y, c) { R(x, y, 7, 6, c); R(x + 3, y, 1, 6, '#ffe060'); R(x, y + 2, 7, 1, '#ffe060'); P(x + 2, y - 1, '#ffe060'); P(x + 4, y - 1, '#ffe060'); block(x, y + 2, 7, 4); addObj({ kind: 'gift', x, y: y - 1, w: 7, h: 7 }); }
   function hat(x, y, c) { P(x + 1, y, '#ffe060'); R(x + 1, y + 1, 1, 1, c); R(x, y + 2, 3, 2, c); }
   function cake(x, y) { R(x, y + 2, 10, 5, '#f0d0e0'); R(x, y + 2, 10, 1, '#fff0f8'); R(x + 1, y + 4, 8, 1, '#ff6a9a'); for (let i = 1; i < 10; i += 3) { R(x + i, y, 1, 2, '#6ab0ff'); P(x + i, y - 1, '#ffd84f'); } }
@@ -638,11 +662,7 @@ window.World = (() => {
   function build() {
     cx = g;
     // fora: planta azul
-    R(0, 0, W, H, '#111723');
-    for (let x = 0; x < W; x += 24) R(x, 0, 1, H, '#1a2232');
-    for (let y = 0; y < H; y += 24) R(0, y, W, 1, '#1a2232');
-    for (let x = 0; x < W; x += 96) R(x, 0, 1, H, '#202a3e');
-    for (let y = 0; y < H; y += 96) R(0, y, W, 1, '#202a3e');
+    R(0, 0, W, H, '#07060b');
     // pisos
     for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) {
       const t = tiles[ti(x, y)];
@@ -739,6 +759,10 @@ window.World = (() => {
     stage(1268, 60, 54, 96);
     [[940, 50, '#ff5a5a'], [960, 46, '#5ab0ff'], [1062, 46, '#ffd84f'], [1250, 48, '#d070ff'], [1300, 40, '#ff5a5a'], [936, 150, '#7a5aff']].forEach(([x, y, c]) => balloon(x, y, c));
     debris(930, 50, 380, 120, 60, ['#ff5a5a', '#5ab0ff', '#ffd84f', '#7aff8a', '#d070ff']);
+    balloonBunch(924, 40, 6); balloonBunch(1090, 40, 5); balloonBunch(1232, 136, 6); balloonBunch(924, 132, 4);
+    balloonBunch(1100, 92, 3); balloonBunch(1180, 40, 4);
+    balloonRow(1258, 58, 100, true);
+    gift(1240, 160, '#ff5a8a'); gift(1250, 156, '#5ab0ff'); gift(940, 112, '#7aff8a');
     // POWER RM 1
     eCabinet(924, 180); eCabinet(940, 180); eCabinet(956, 180);
     panelBox(994, 182);
@@ -759,6 +783,9 @@ window.World = (() => {
     R(1168, 336, 12, 70, '#e8e8f0'); R(1168, 336, 12, 1, '#fff'); block(1168, 338, 12, 68); addObj({ kind: 'table', x: 1168, y: 336, w: 12, h: 70 });
     [[930, 360, '#ff5a5a'], [1150, 470, '#7aff8a'], [940, 470, '#5ab0ff']].forEach(([x, y, c]) => balloon(x, y, c));
     debris(930, 350, 250, 130, 60, ['#ff5a5a', '#5ab0ff', '#ffd84f', '#7aff8a', '#d070ff']);
+    balloonRow(998, 350, 116, false);
+    balloonBunch(924, 330, 6); balloonBunch(1140, 330, 5); balloonBunch(924, 446, 5); balloonBunch(1120, 452, 4); balloonBunch(1060, 456, 3);
+    gift(1150, 420, '#ffd84f'); gift(1140, 428, '#d070ff');
     // CORREDORES
     plant(556, 66); plant(586, 300); trash(588, 180); poster(604, 504, '#3ac88a');
     plant(60, 140); trash(78, 420); plant(60, 600); trash(400, 700); plant(410, 576);
@@ -768,7 +795,14 @@ window.World = (() => {
     plant(1176, 520); trash(1160, 540);
     debris(560, 510, 620, 40, 60);
     debris(60, 150, 30, 560, 40); debris(60, 700, 370, 30, 40);
+    // mais coisas pelos corredores
+    cone(64, 236); wetSign(80, 300); plant(78, 470); cone(66, 650); plant(76, 560);
+    plant(330, 706); cone(250, 718); wetSign(300, 700);
+    cone(640, 536); wetSign(760, 512); plant(940, 506); cone(1100, 540); bench(820, 540, 26);
+    plant(400, 40); cone(470, 50); wetSign(620, 36); plant(700, 36); cone(880, 50);
+    balloonBunch(560, 504, 4);
     // LOBBY
+    balloonBunch(446, 572, 5); balloonBunch(756, 572, 5); balloonBunch(600, 700, 3);
     poster(450, 562, '#ff4fd0');
     R(470, 562, 30, 14, '#1a1a22'); R(471, 563, 28, 11, '#3a1a5a');
     cabinet(520, 562, 'down', CAB[2]); cabinet(536, 562, 'down', CAB[3]);
