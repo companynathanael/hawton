@@ -137,7 +137,7 @@
       if (l.kind === 'cab') { l.r *= 1.7; l.gi = 1.25; }
       else if (l.g === 'main') { l.c = mixHex(l.c, '#d8d0e8', 0.8); l.gi = 0.35; }
     } else if (DIM_ROOMS.test(l.room || '') && l.g === 'main') l.gi = 0.6;
-    else if (/^(c1|c5|c6|v|mid|svc|stairs)$/.test(l.room || '') && l.g === 'main') { l.c = mixHex(l.c, '#d8d0e8', 0.65); l.gi = 0.6; }
+    else if (/^(c1|c5|c6|v|mid|stairs)$/.test(l.room || '') && l.g === 'main') { l.c = mixHex(l.c, '#d8d0e8', 0.65); l.gi = 0.6; }
     l.rgb = hex(l.c).map(v => v / 255);
   });
   // circuitos: emg = emergência (sempre acesa), gen = gerador, main = rede principal
@@ -479,11 +479,12 @@
     motes.length = 0;
     for (let i = 0; i < 140; i++) motes.push({ x: cam.x + rnd(0, GW), y: cam.y + rnd(0, GH), vx: rnd(-3, 3), vy: rnd(-2, 2), ph: Math.random() * 6 });
     if (touch.el) touch.el.classList.add('on');
-    game.gen = game.powered = false; game.ui = null; game.intro = false; game.energy = 100;
+    game.gen = game.powered = false; game.ui = null; game.intro = false; game.energy = 100; game.hasKey = false;
     sec.seated = sec.cams = false; sec.light.W = sec.light.E = false;
-    for (const d of Wd.doors) { d.open = d.type === 'arch' || d.type === 'security'; d.anim = d.open ? 1 : 0; }
+    for (const d of Wd.doors) { d.open = d.type === 'arch' || d.type === 'security'; d.anim = d.open ? 1 : 0; d.locked = !!d.lock; d.broken = false; }
+    resetBreaks();
     resetScares();
-    if (/[?&]lit\b/.test(location.search)) { game.gen = true; game.genT = -99; game.powered = true; game.powerT = -99; }
+    if (/[?&]lit\b/.test(location.search)) { game.hasKey = true; Wd.doors.forEach(d => d.locked = false); game.gen = true; game.genT = -99; game.powered = true; game.powerT = -99; }
   }
 
   function showMsg(text) { game.msg = text; game.msgT = 0; }
@@ -566,7 +567,7 @@
       if (room.name === '???') { Sfx.heartbeat(); post.glitch = 0.8; }
     }
     if (room) {
-      const pk = game.powered ? 1 : 0.55;
+      const pk = game.powered ? 1 : 0.16;
       const tgt = [(34 + room.rgb[0] * room.amb * 3) * pk, (28 + room.rgb[1] * room.amb * 3) * pk, (54 + room.rgb[2] * room.amb * 3) * pk];
       for (let i = 0; i < 3; i++) game.amb[i] = lerp(game.amb[i], tgt[i], Math.min(1, dt * 1.5));
     }
@@ -675,6 +676,7 @@
       if (m.y < cam.y - 10) m.y += GH + 20; if (m.y > cam.y + GH + 10) m.y -= GH + 20;
     }
     updateScares(dt);
+    updateBreaks(dt);
     updateVision(dt);
     for (let i = puffs.length - 1; i >= 0; i--) {
       const p = puffs[i]; p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
@@ -920,6 +922,7 @@
       Wd.drawFront(g, cx, cy, Math.round(P.x), Math.round(P.y), game.t, st);
     }
 
+    drawKey(cx, cy);
     drawFalling(cx, cy);
     // ---- mapa de luz ----
     lg.globalCompositeOperation = 'source-over'; lg.globalAlpha = 1;
@@ -946,11 +949,12 @@
       lg.drawImage(glow('#ffe2b8'), px - 26, py - 36, 52, 52);
     }
     if (flashOn > 0) {
-      poly = castCone(wox, woy, P.aim, 170, 0.48, 96);
+      const FL = game.powered ? 210 : 290;
+      poly = castCone(wox, woy, P.aim, FL, 0.46, 110);
       lg.save(); clipPoly(lg, wox, woy, poly, cx, cy);
-      drawCone(lg, hx, hy, P.aim, 165, 0.46, 1.0 * flashOn, '255,238,205');
+      drawCone(lg, hx, hy, P.aim, FL - 5, 0.44, 1.15 * flashOn, '255,238,205');
       lg.globalAlpha = 0.5 * flashOn;
-      const fx = hx + Math.cos(P.aim) * 72, fy = hy + Math.sin(P.aim) * 72;
+      const fx = hx + Math.cos(P.aim) * 90, fy = hy + Math.sin(P.aim) * 90;
       lg.drawImage(glow('#fff0d0'), fx - 34, fy - 34, 68, 68);
       lg.restore();
     }
@@ -968,10 +972,11 @@
         vl.push({ x: lx, y: ly, r: l.r, rgb: l.rgb, k: l.i, s: l.i * l.r / (40 + Math.hypot(lx - VW / 2, ly - VH / 2)) });
       }
       vl.sort((a, b) => b.s - a.s);
-      if (flashOn > 0) vl.unshift({ x: hx + Math.cos(P.aim) * 30, y: hy + Math.sin(P.aim) * 30, r: 50, rgb: [1, 0.9, 0.75], k: 0.5 * flashOn });
+      if (flashOn > 0) vl.unshift({ x: hx + Math.cos(P.aim) * 40, y: hy + Math.sin(P.aim) * 40, r: game.powered ? 50 : 70, rgb: [1, 0.9, 0.75], k: 0.5 * flashOn });
       const rid = game.room ? game.room.id : '';
       const dim = DIM_ROOMS.test(rid);
-      composed = window.Gfx.compose(buf, lightC, cx, cy, vl, { px, py, time: game.t, expo: dim ? 1.0 : 1.75, specK: dim ? 0.45 : 1.0, emK: dim ? 0.45 : 0.85 });
+      const pwr = game.powered ? 1 : 0;
+      composed = window.Gfx.compose(buf, lightC, cx, cy, vl, { px, py, time: game.t, expo: dim ? 1.0 : 1.75, specK: dim ? 0.45 : 1.0, emK: (dim ? 0.45 : 0.85) * pwr });
     }
     if (composed) { g.globalCompositeOperation = 'copy'; g.drawImage(composed, 0, 0); g.globalCompositeOperation = 'source-over'; }
     else { g.globalCompositeOperation = 'multiply'; g.drawImage(lightC, 0, 0); }
@@ -986,19 +991,25 @@
     }
     if (flashOn > 0) {
       g.save(); clipPoly(g, wox, woy, poly, cx, cy);
-      drawCone(g, hx, hy, P.aim, 140, 0.4, 0.09 * flashOn, '255,235,200');
+      drawCone(g, hx, hy, P.aim, game.powered ? 180 : 250, 0.4, 0.09 * flashOn, '255,235,200');
       g.restore();
       g.globalAlpha = 0.9 * flashOn; g.fillStyle = '#fff6d8';
       g.fillRect(Math.round(hx + Math.cos(P.aim) * 3), Math.round(hy + Math.sin(P.aim) * 2), 1, 1);
     }
     drawSparks(cx, cy);
+    if (!game.hasKey && !o.cam) {
+      const kx = 716 - cx, ky = 612 - cy, tw = Math.max(0, Math.sin(game.t * 3));
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.25 + 0.5 * tw; g.drawImage(glow('#ffe090'), kx - 6, ky - 5, 12, 12);
+      g.globalAlpha = tw; g.fillStyle = '#fff4c0'; g.fillRect(kx, ky - 2, 1, 5); g.fillRect(kx - 2, ky, 5, 1);
+      g.globalAlpha = 1; g.globalCompositeOperation = 'lighter';
+    }
     if (!o.cam) for (const m of motes) {
       const mx = m.x - cx, my = m.y - cy;
       let b = 0.05;
       if (flashOn > 0) {
         const dx = mx - hx, dy = my - hy, d = Math.hypot(dx, dy);
         let ad = Math.atan2(dy, dx) - P.aim; while (ad > Math.PI) ad -= Math.PI * 2; while (ad < -Math.PI) ad += Math.PI * 2;
-        if (d < 150 && Math.abs(ad) < 0.45) b = Math.max(b, (1 - d / 150) * (1 - Math.abs(ad) / 0.45) * 0.9 * flashOn);
+        if (d < 240 && Math.abs(ad) < 0.45) b = Math.max(b, (1 - d / 240) * (1 - Math.abs(ad) / 0.45) * 0.9 * flashOn);
       }
       b *= 0.6 + 0.4 * Math.sin(game.t * 3 + m.ph);
       if (b < 0.03) continue;
@@ -1095,7 +1106,7 @@
   }
   function drawGame() {
     setRes(GW, GH);
-    if (sec.seated && sec.cams) { drawCams(); return; }
+    if (sec.seated && sec.cams) { drawCams(); if (game.ui) drawUI(); return; }
     const sx = (Math.random() - 0.5) * cam.shake, sy = (Math.random() - 0.5) * cam.shake;
     const cx = Math.round(cam.x + sx), cy = Math.round(cam.y + sy);
     drawScene(cx, cy, { flash: !sec.seated || true });
@@ -1157,7 +1168,8 @@
     // objetivo
     if (!game.ui && game.t > 3) {
       let obj = null;
-      if (!game.gen) obj = '> LIGAR O GERADOR';
+      if (!game.hasKey) obj = '> PEGAR A CHAVE NA RECEPCAO';
+      else if (!game.gen) obj = '> LIGAR O GERADOR';
       else if (!game.powered) obj = '> PAINEL ELETRICO';
       else if (game.t - game.powerT < 6) obj = '> ENERGIA OK';
       if (obj) text(obj, GW - 10, 22, game.powered ? '#8dff7a' : '#c8b8e8', 'right', 0.55 + 0.15 * Math.sin(game.t * 2));
@@ -1178,6 +1190,7 @@
     g.globalAlpha = 0.75;
     g.fillStyle = '#000'; g.fillRect(bx - 1, by - 1, 12, 7);
     g.fillStyle = P.flash ? '#ffe9a8' : '#3a3448'; g.fillRect(bx, by, 7, 5); g.fillRect(bx + 7, by - 1, 3, 7);
+    if (game.hasKey) { const kx = bx - 18, ky = by; g.fillStyle = '#000'; g.fillRect(kx - 1, ky - 1, 12, 7); g.fillStyle = '#e8c050'; g.fillRect(kx, ky, 4, 4); g.fillRect(kx + 4, ky + 1, 6, 2); g.fillRect(kx + 8, ky + 3, 2, 2); g.fillStyle = '#000'; g.fillRect(kx + 1, ky + 1, 2, 2); }
     g.globalAlpha = 1;
   }
 
@@ -1190,7 +1203,7 @@
     c5: [[71.5, 65.5], [140.5, 65.5]],
     c6: [[8.5, 15.5], [8.5, 89.5], [50.5, 89.5], [50.5, 70]],
     mid: [[41.5, 36.5], [41.5, 62.5]],
-    svc: [[140.5, 22.5], [140.5, 39.5]],
+    service: [[140.5, 22.5], [140.5, 39.5], [140.5, 32], [133.5, 32]],
     stairs: [[105.5, 65.5], [105.5, 82.5]],
   };
   const MAP_LABEL = {
@@ -1284,7 +1297,7 @@
       g.fillStyle = '#fff'; g.fillRect(Math.round(ox + P.x * s) - 1, Math.round(oy + (P.y - 6) * s) - 1, 2, 2);
     }
     if (!game.powered && Math.floor(game.t * 2) % 2 === 0) {
-      const o = game.gen ? PANEL_POS : GEN_POS;
+      const o = !game.hasKey ? [714, 612] : game.gen ? PANEL_POS : GEN_POS;
       g.strokeStyle = '#ffd24a'; g.lineWidth = 1;
       g.strokeRect(Math.round(ox + o[0] * s) - 4.5, Math.round(oy + o[1] * s) - 4.5, 9, 9);
     }
@@ -1391,6 +1404,8 @@
     // botão fechar (canto do painel)
     if (click && mx > 322 && mx < 342 && my > 20 && my < 34) { game.ui = null; Sfx.click(); return; }
     if (ui.type === 'arcade') { updateArcade(ui, dt, click, mx, my); return; }
+    if (ui.type === 'wires') { updateWires(ui, dt, click, mx, my); return; }
+    if (ui.type === 'tune') { updateTune(ui, dt, click, mx, my); return; }
 
     if (ui.type === 'gen') {
       ui.flash = Math.max(0, ui.flash - dt * 3); ui.shake = Math.max(0, ui.shake - dt * 10);
@@ -1454,6 +1469,8 @@
     const ui = game.ui;
     if (ui.type === 'gen') return drawGen(ui);
     if (ui.type === 'arcade') return drawArcade(ui);
+    if (ui.type === 'wires') return drawWires(ui);
+    if (ui.type === 'tune') return drawTune(ui);
     drawPanel(ui);
   }
 
@@ -1580,6 +1597,7 @@
   function findPrompt() {
     for (const it of D.interact) {
       if (!inR(P.x, P.y - 2, it.r)) continue;
+      if (it.id === 'key' && game.hasKey) continue;
       return { label: it.label, run: () => runInteract(it) };
     }
     // fliperama: em frente à tela
@@ -1601,6 +1619,11 @@
     if (best) {
       const d = best;
       if (d.type === 'exit') return { label: '[E] porta', run: () => { Sfx.rattle(); cam.shake = 2; showMsg(d.msg); } };
+      if (d.type === 'security' && d.broken) return { label: '[E] consertar porta', run: () => openWires(d.id === 'secW' ? 'W' : 'E') };
+      if (d.locked) return { label: '[E] porta trancada', run: () => {
+        if (game.hasKey) { d.locked = false; d.open = true; Sfx.coin(); Sfx.doorOpen(); showMsg('Destrancada com a chave.'); }
+        else { Sfx.rattle(); cam.shake = 1.5; showMsg('Trancada. A chave deve estar na recepção.'); }
+      } };
       if (d.type === 'security') return d.open ? null : { label: '[E] porta de segurança', run: () => { Sfx.deny(); showMsg('Só abre pela mesa de segurança.'); } };
       return {
         label: d.open ? '[E] fechar porta' : '[E] abrir porta',
@@ -1619,6 +1642,7 @@
       else if (!game.gen) { Sfx.deny(); showMsg('Sem corrente. O gerador está parado.'); }
       else openPanel();
     } else if (it.id === 'desk') sitDown();
+    else if (it.id === 'key') { game.hasKey = true; Sfx.coin(); setTimeout(() => Sfx.ding(2), 150); showMsg('Você pegou a chave do corredor de serviço.'); }
     else if (it.to) teleport(it.to, it.msg);
   }
   // =====================================================================
@@ -1830,6 +1854,189 @@
   }
 
   // =====================================================================
+  //  QUEBRAS — portas de segurança e câmeras quebram (com energia)
+  // =====================================================================
+  const brk = { t: 70, cams: new Set() };
+  const doorName = k => k === 'W' ? 'PORTA OESTE' : 'PORTA LESTE';
+  function updateBreaks(dt) {
+    if (!game.powered || game.t - game.powerT < 20) return;
+    brk.t -= dt;
+    if (brk.t > 0) return;
+    brk.t = rnd(55, 95);
+    const doors = ['W', 'E'].filter(k => !sec.door[k].broken);
+    const cams = Wd.cameras.map((c, i) => i).filter(i => !brk.cams.has(i));
+    if ((Math.random() < 0.5 && doors.length) || !cams.length) {
+      if (!doors.length) return;
+      const k = doors[(Math.random() * doors.length) | 0], d = sec.door[k];
+      d.broken = true; d.open = true;
+      Sfx.zap(); Sfx.clank(); cam.shake = 3; post.glitch = Math.max(post.glitch, 0.5);
+      for (let i = 0; i < 20; i++) sparks.push({ x: d.cx, y: d.cy + 4, z: 14, vx: rnd(-50, 50), vy: rnd(-20, 30), vz: rnd(10, 60), life: rnd(0.3, 0.9) });
+      showMsg(`A ${doorName(k)} quebrou! Conserte perto dela.`);
+    } else {
+      const i = cams[(Math.random() * cams.length) | 0];
+      brk.cams.add(i); Sfx.zap();
+      showMsg(`A CAM ${String(Wd.cameras[i].n).padStart(2, '0')} caiu. Conserte pelo painel das câmeras.`);
+    }
+  }
+  function resetBreaks() { brk.t = 70; brk.cams.clear(); for (const k of ['W', 'E']) if (sec.door[k]) sec.door[k].broken = false; }
+
+  // ---------- puzzle: religar fios (porta) ----------
+  const WIRE_C = ['#ff4a4a', '#4aa8ff', '#ffd23a'];
+  function openWires(k) {
+    const n = 6, left = [], right = [];
+    for (let i = 0; i < n; i++) left.push({ c: i % 3, st: i >= 3 });
+    for (let i = left.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [left[i], left[j]] = [left[j], left[i]]; }
+    for (let i = 0; i < n; i++) right.push(i);
+    for (let i = right.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [right[i], right[j]] = [right[j], right[i]]; }
+    game.ui = { type: 'wires', k, t: 0, n, left, right, link: new Array(n).fill(-1), side: 0, row: 0, sel: -1, err: 0, shake: 0, done: -1 };
+    Sfx.click();
+  }
+  const WX0 = 96, WX1 = 288, WY = i => 54 + i * 19;
+  function wirePick(ui, side, row) {
+    if (side === 0) { if (ui.link[row] >= 0) return; ui.sel = row; ui.side = 1; Sfx.tick(); return; }
+    if (ui.sel < 0) return;
+    if (ui.link.includes(row)) return;
+    const a = ui.left[ui.sel], b = ui.left[ui.right[row]];
+    if (a.c === b.c && a.st === b.st) {
+      ui.link[ui.sel] = row; ui.sel = -1; ui.side = 0; Sfx.clunk();
+      const nx = ui.link.indexOf(-1); if (nx >= 0) ui.row = nx;
+      if (!ui.link.includes(-1)) { ui.done = 0; Sfx.success(); }
+    } else { ui.err++; ui.shake = 5; Sfx.zap(); cam.shake = 1.5; ui.sel = -1; ui.side = 0; }
+  }
+  function updateWires(ui, dt, click, mx, my) {
+    ui.shake = Math.max(0, ui.shake - dt * 12);
+    if (ui.done >= 0) {
+      ui.done += dt;
+      if (ui.done > 1.2) { const d = sec.door[ui.k]; d.broken = false; game.ui = null; showMsg(`${doorName(ui.k)} consertada.`); }
+      return;
+    }
+    if (consume('arrowup') || consume('w')) ui.row = (ui.row + ui.n - 1) % ui.n;
+    if (consume('arrowdown') || consume('s')) ui.row = (ui.row + 1) % ui.n;
+    if (consume('arrowleft') || consume('a')) ui.side = 0;
+    if (consume('arrowright') || consume('d')) ui.side = 1;
+    if (actionPressed()) wirePick(ui, ui.side, ui.row);
+    if (click) for (let i = 0; i < ui.n; i++) {
+      if (Math.abs(my - WY(i) - 3) < 8) { if (Math.abs(mx - WX0) < 18) { ui.row = i; wirePick(ui, 0, i); } else if (Math.abs(mx - WX1) < 18) { ui.row = i; wirePick(ui, 1, i); } }
+    }
+  }
+  function plug(x, y, w, l, flip) {
+    g.fillStyle = WIRE_C[l.c]; g.fillRect(x, y, w, 7);
+    if (l.st) { g.fillStyle = '#f0f0f0'; for (let i = 0; i < w; i += 3) g.fillRect(x + i, y + 2, 1, 3); }
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x, y, w, 1);
+    g.fillStyle = '#9a9aa8'; g.fillRect(flip ? x - 3 : x + w, y + 2, 3, 3);
+  }
+  function drawWires(ui) {
+    const sx = Math.round((Math.random() - 0.5) * ui.shake);
+    frame9(40 + sx, 18, 304, 180);
+    text(`RELIGAR FIOS - ${doorName(ui.k)}`, GW / 2 + sx, 28, '#f0e2c0', 'center');
+    g.fillStyle = '#0d0b12'; g.fillRect(60 + sx, 44, 264, 122);
+    // fios ligados
+    for (let i = 0; i < ui.n; i++) {
+      const r = ui.link[i]; if (r < 0) continue;
+      const l = ui.left[i], x0 = WX0 + 12, y0 = WY(i) + 3, x1 = WX1 - 14, y1 = WY(r) + 3;
+      for (let s = 0; s <= 1; s += 1 / 120) {
+        const x = x0 + (x1 - x0) * s, y = y0 + (y1 - y0) * s + Math.sin(s * Math.PI) * 8;
+        g.fillStyle = l.st && ((s * 120) | 0) % 4 < 2 ? '#f0f0f0' : WIRE_C[l.c]; g.fillRect(Math.round(x) + sx, Math.round(y), 2, 2);
+      }
+    }
+    // fio selecionado seguindo o cursor
+    if (ui.sel >= 0) {
+      const l = ui.left[ui.sel], y0 = WY(ui.sel) + 3, y1 = WY(ui.row) + 3;
+      for (let s = 0; s <= 1; s += 1 / 60) { g.fillStyle = WIRE_C[l.c]; g.globalAlpha = 0.6; g.fillRect(Math.round(WX0 + 12 + (WX1 - 26 - WX0) * s * (ui.side ? 1 : 0.5)) + sx, Math.round(y0 + (y1 - y0) * s), 2, 2); }
+      g.globalAlpha = 1;
+    }
+    for (let i = 0; i < ui.n; i++) {
+      plug(WX0 - 10 + sx, WY(i), 20, ui.left[i], false);
+      const tl = ui.left[ui.right[i]], lit = ui.link.includes(i);
+      g.fillStyle = '#2a2632'; g.fillRect(WX1 - 12 + sx, WY(i) - 2, 24, 11);
+      plug(WX1 - 8 + sx, WY(i), 16, tl, true);
+      g.fillStyle = lit ? '#6aff7a' : '#3a2a2a'; g.fillRect(WX1 + 14 + sx, WY(i) + 2, 3, 3);
+    }
+    if (Math.floor(ui.t * 4) % 2 || ui.sel >= 0) {
+      const x = (ui.side ? WX1 - 14 : WX0 - 12) + sx;
+      g.strokeStyle = '#ffffff'; g.lineWidth = 1; g.strokeRect(x - 0.5, WY(ui.row) - 2.5, 26, 12);
+    }
+    text(ui.done >= 0 ? 'PORTA CONSERTADA!' : 'LIGUE CADA FIO NA COR IGUAL', GW / 2 + sx, 172, ui.done >= 0 ? '#7aff8a' : '#9a8fb0', 'center');
+    if (ui.err) text(`ERROS ${ui.err}`, 60 + sx, 28, '#ff6a5a');
+  }
+
+  // ---------- puzzle: sintonizar sinal (câmera) ----------
+  function openTune(ci) {
+    const ui = { type: 'tune', ci, t: 0, round: 0, row: 0, hold: 0, done: -1 };
+    newTuneRound(ui);
+    game.ui = ui; Sfx.camSwitch();
+  }
+  function newTuneRound(ui) {
+    ui.tgt = { f: 1.5 + ((Math.random() * 13) | 0) * 0.25, p: ((Math.random() * 16) | 0) * Math.PI / 8, a: 0.35 + ((Math.random() * 12) | 0) * 0.05 };
+    ui.cur = { f: ui.tgt.f + (Math.random() < 0.5 ? -1 : 1) * (1 + ((Math.random() * 6) | 0) * 0.25), p: ui.round >= 1 ? ((ui.tgt.p / (Math.PI / 8) + 4 + ((Math.random() * 8) | 0)) % 16) * Math.PI / 8 : ui.tgt.p, a: ui.round >= 2 ? (ui.tgt.a > 0.6 ? 0.35 : 0.9) : ui.tgt.a };
+    ui.cur.f = clamp(ui.cur.f, 1, 5); ui.row = 0; ui.hold = 0;
+  }
+  const TUNE_P = [['FREQ', 'f', 0.25, 1, 5], ['FASE', 'p', Math.PI / 8, 0, Math.PI * 2], ['AMPL', 'a', 0.05, 0.3, 0.95]];
+  const tuneOk = ui => Math.abs(ui.cur.f - ui.tgt.f) < 0.01 && (ui.round < 1 || Math.abs(((ui.cur.p - ui.tgt.p) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)) < 0.01) && (ui.round < 2 || Math.abs(ui.cur.a - ui.tgt.a) < 0.01);
+  function tuneAdj(ui, row, dir) {
+    const [, k, st, lo, hi] = TUNE_P[row];
+    if (k === 'p') ui.cur.p = ((ui.cur.p + dir * st) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+    else ui.cur[k] = Math.round(clamp(ui.cur[k] + dir * st, lo, hi) * 100) / 100;
+    Sfx.tick();
+  }
+  function updateTune(ui, dt, click, mx, my) {
+    if (ui.done >= 0) { ui.done += dt; if (ui.done > 1.2) { brk.cams.delete(ui.ci); game.ui = null; sec.camStatic = 0.35; showMsg('Câmera consertada.'); } return; }
+    const rows = ui.round + 1;
+    if (consume('arrowup') || consume('w')) ui.row = (ui.row + rows - 1) % rows;
+    if (consume('arrowdown') || consume('s')) ui.row = (ui.row + 1) % rows;
+    if (consume('arrowleft') || consume('a')) tuneAdj(ui, ui.row, -1);
+    if (consume('arrowright') || consume('d')) tuneAdj(ui, ui.row, 1);
+    if (click) for (let r = 0; r < rows; r++) {
+      const y = 148 + r * 13;
+      if (my >= y - 2 && my < y + 10) { ui.row = r; if (mx >= 108 && mx < 122) tuneAdj(ui, r, -1); if (mx >= 262 && mx < 276) tuneAdj(ui, r, 1); }
+    }
+    ui.hold = tuneOk(ui) ? ui.hold + dt : 0;
+    if (ui.hold > 0.8) {
+      Sfx.ding(ui.round);
+      if (ui.round >= 2) { ui.done = 0; Sfx.success(); } else { ui.round++; newTuneRound(ui); }
+    }
+  }
+  function drawTune(ui) {
+    frame9(40, 18, 304, 180);
+    const c = Wd.cameras[ui.ci];
+    text(`SINTONIZAR CAM ${String(c.n).padStart(2, '0')}`, GW / 2, 28, '#f0e2c0', 'center');
+    const X = 60, Y = 42, Wd2 = 264, Hh = 92;
+    g.fillStyle = '#04120a'; g.fillRect(X, Y, Wd2, Hh);
+    g.fillStyle = '#0c2a18'; for (let x = 0; x < Wd2; x += 22) g.fillRect(X + x, Y, 1, Hh); for (let y = 0; y < Hh; y += 23) g.fillRect(X, Y + y, Wd2, 1);
+    const wave = (p, col, dot, noise) => {
+      g.fillStyle = col;
+      for (let x = 0; x < Wd2; x++) {
+        if (dot && x % 3) continue;
+        const v = Math.sin(x / Wd2 * Math.PI * 2 * p.f + p.p) * p.a + (noise ? (Math.random() - 0.5) * noise : 0);
+        g.fillRect(X + x, Math.round(Y + Hh / 2 - v * (Hh / 2 - 4)), 1, dot ? 1 : 2);
+      }
+    };
+    wave(ui.tgt, '#2e7a4a', true, 0);
+    const ok = tuneOk(ui);
+    wave(ui.cur, ok ? '#c8ffd8' : '#5aff8a', false, ok ? 0 : 0.12);
+    text(ok ? 'SINAL OK - SEGURE...' : `ETAPA ${ui.round + 1}/3`, GW / 2, 136, ok ? '#c8ffd8' : '#7a9a88', 'center');
+    for (let r = 0; r <= ui.round; r++) {
+      const [lab, k, , lo, hi] = TUNE_P[r], y = 148 + r * 13, sel = r === ui.row;
+      text(lab, 62, y, sel ? '#e8ffe8' : '#6a8a78');
+      g.fillStyle = sel ? '#5aff8a' : '#2a4a38'; g.fillRect(108, y, 12, 9); g.fillRect(264, y, 12, 9);
+      g.fillStyle = '#000'; g.fillRect(112, y + 4, 4, 1); g.fillRect(268, y + 4, 4, 1); g.fillRect(270, y + 2, 1, 5);
+      g.fillStyle = '#12261a'; g.fillRect(126, y + 3, 132, 3);
+      const v = k === 'p' ? ui.cur.p / (Math.PI * 2) : (ui.cur[k] - lo) / (hi - lo);
+      g.fillStyle = sel ? '#c8ffd8' : '#5a8a6a'; g.fillRect(126 + Math.round(v * 128), y, 4, 9);
+    }
+    if (ui.done >= 0) text('CAMERA CONSERTADA!', GW / 2, 100, '#ffffff', 'center');
+  }
+
+  // ---------- chave da recepção ----------
+  function drawKey(cx, cy) {
+    if (game.hasKey) return;
+    const x = 712 - cx, y = 612 - cy;
+    g.fillStyle = '#c8a040'; g.fillRect(x, y, 3, 3); g.fillRect(x + 3, y + 1, 5, 1); g.fillRect(x + 6, y + 2, 1, 1); g.fillRect(x + 8, y + 1, 1, 2);
+    g.fillStyle = '#5a4a20'; g.fillRect(x + 1, y + 1, 1, 1);
+    if (Math.floor(game.t * 2) % 3 === 0) { g.fillStyle = '#fff8d0'; g.fillRect(x + 4, y, 1, 1); }
+  }
+
+  // =====================================================================
   //  SALA DE SEGURANÇA — portas, luzes e câmeras
   // =====================================================================
   function sitDown() {
@@ -1841,7 +2048,9 @@
   function standUp() { sec.seated = false; sec.cams = false; Sfx.click(); }
   function toggleSecDoor(k) {
     if (!game.powered) { Sfx.deny(); showMsg('Sem energia.'); return; }
-    const d = sec.door[k]; d.open = !d.open; Sfx.secDoor(!d.open); cam.shake = 1.5;
+    const d = sec.door[k];
+    if (d.broken) { Sfx.deny(); showMsg(`${doorName(k)} quebrada. Conserte perto dela.`); return; }
+    d.open = !d.open; Sfx.secDoor(!d.open); cam.shake = 1.5;
   }
   function toggleSecLight(k) {
     if (!game.powered) { Sfx.deny(); showMsg('Sem energia.'); return; }
@@ -1853,11 +2062,11 @@
   }
   // botões da barra inferior (mouse/toque)
   const SEAT_BTNS = [
-    { k: 'doorW', label: 'PORTA O', key: 'A' }, { k: 'lightW', label: 'LUZ O', key: 'Q' },
+    { k: 'doorW', label: 'PORTA O', key: 'A' },
     { k: 'cams', label: 'CAMERAS', key: 'S' },
-    { k: 'lightE', label: 'LUZ L', key: 'E' }, { k: 'doorE', label: 'PORTA L', key: 'D' },
+    { k: 'doorE', label: 'PORTA L', key: 'D' },
   ];
-  const btnRect = i => [8 + i * 74, GH - 26, 70, 18];
+  const btnRect = i => [GW / 2 - 117 + i * 80, GH - 26, 74, 18];
   function seatAction(k) {
     if (k === 'doorW') toggleSecDoor('W'); else if (k === 'doorE') toggleSecDoor('E');
     else if (k === 'lightW') toggleSecLight('W'); else if (k === 'lightE') toggleSecLight('E');
@@ -1869,8 +2078,6 @@
     if (consume('escape') || consume('w') || consume('arrowup')) { standUp(); return; }
     if (consume('a') || consume('arrowleft')) seatAction('doorW');
     if (consume('d') || consume('arrowright')) seatAction('doorE');
-    if (consume('q')) seatAction('lightW');
-    if (consume('e')) seatAction('lightE');
     if (consume('s') || consume(' ') || consume('c') || consume('arrowdown')) seatAction('cams');
     if (consume('click')) {
       const [mx, my] = uiMouse();
@@ -1887,12 +2094,14 @@
     if (!game.powered) { sec.cams = false; return; }
     for (let n = 1; n <= 9; n++) if (consume(String(n))) setCam(n - 1);
     if (consume('0')) setCam(9);
+    if (brk.cams.has(sec.cam) && (consume('r') || consume('e') || consume('enter'))) { openTune(sec.cam); return; }
     if (consume('arrowleft') || consume('a')) setCam(sec.cam - 1);
     if (consume('arrowright') || consume('d')) setCam(sec.cam + 1);
     if (consume('click')) {
       const [mx, my] = uiMouse();
       Wd.cameras.forEach((c, i) => { const r = camBtn(c); if (mx >= r[0] - 1 && my >= r[1] - 1 && mx < r[0] + r[2] + 1 && my < r[1] + r[3] + 1) setCam(i); });
       if (mx < 60 && my > GH - 22) { sec.cams = false; Sfx.camSwitch(); }
+      if (brk.cams.has(sec.cam) && mx > GW / 2 - 70 && mx < GW / 2 + 70 && my > GH / 2 + 4 && my < GH / 2 + 22) openTune(sec.cam);
     }
   }
 
@@ -1918,12 +2127,13 @@
     text('ESC', GW - 10, 10, '#7a6f8a', 'right');
     SEAT_BTNS.forEach((b, i) => {
       const [x, y, w, h] = btnRect(i);
-      const on = b.k === 'doorW' ? !sec.door.W.open : b.k === 'doorE' ? !sec.door.E.open : b.k === 'lightW' ? sec.light.W : b.k === 'lightE' ? sec.light.E : false;
+      const on = b.k === 'doorW' ? !sec.door.W.open : b.k === 'doorE' ? !sec.door.E.open : false;
+      const broke = (b.k === 'doorW' && sec.door.W.broken) || (b.k === 'doorE' && sec.door.E.broken);
       g.fillStyle = '#0b0910'; g.fillRect(x - 1, y - 1, w + 2, h + 2);
       g.fillStyle = on ? (b.k.startsWith('door') ? '#7a2020' : '#6a6020') : '#211d29'; g.fillRect(x, y, w, h);
       g.fillStyle = on ? (b.k.startsWith('door') ? '#ff4040' : '#ffe060') : '#3a3346'; g.fillRect(x + 3, y + 7, 4, 4);
       if (!game.powered) g.fillStyle = '#2a2434', g.fillRect(x + 3, y + 7, 4, 4);
-      text(b.label, x + w / 2 + 4, y + 6, game.powered ? '#e8dcff' : '#5a5068', 'center');
+      text(broke ? 'QUEBRADA' : b.label, x + w / 2 + 4, y + 6, broke ? (Math.floor(game.t * 3) % 2 ? '#ff5a4a' : '#8a2a20') : game.powered ? '#e8dcff' : '#5a5068', 'center');
       if (!isTouch) text(b.key, x + w - 2, y - 9, '#6a6078', 'right', 0.8);
     });
   }
@@ -1963,7 +2173,7 @@
       g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(0, band, GW, 5);
     } else { g.fillStyle = '#000'; g.fillRect(0, 0, GW, GH); }
     // estática ao trocar
-    const stc = game.powered ? sec.camStatic / 0.3 : 1;
+    const stc = game.powered ? (brk.cams.has(sec.cam) ? 0.85 + Math.random() * 0.15 : sec.camStatic / 0.3) : 1;
     if (stc > 0) {
       for (let y = 0; y < GH; y += 2) { const v = Math.random() * 200 | 0; g.fillStyle = `rgba(${v},${v},${v},${Math.min(1, stc)})`; g.fillRect(0, y, GW, 2); }
     }
@@ -1975,6 +2185,12 @@
     const secs = Math.floor(game.t);
     text(`00:${String((secs / 60 | 0) % 60).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`, GW - 10, 23, '#b8e8c8', 'right');
     if (!game.powered) text('SEM SINAL', GW / 2, GH / 2 - 4, '#e8e8e8', 'center');
+    else if (brk.cams.has(sec.cam)) {
+      text('CAMERA DANIFICADA', GW / 2, GH / 2 - 14, '#ff8a7a', 'center');
+      g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(GW / 2 - 70, GH / 2 + 4, 140, 18);
+      g.strokeStyle = '#5aff8a'; g.strokeRect(GW / 2 - 69.5, GH / 2 + 4.5, 139, 17);
+      text(isTouch ? 'TOQUE: CONSERTAR' : '[R] CONSERTAR', GW / 2, GH / 2 + 9, '#c8ffd8', 'center');
+    }
     // mapa (planta) com os botões das câmeras
     const M = CMAP;
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(M.x - 3, M.y - 3, M.w + 6, M.h + 6);
@@ -2035,7 +2251,7 @@
   // atalho de depuração: ?play pula direto para o jogo
   if (/[?&]play\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startGame(); } }, 50);
-    window.__hawton = { P, game, cam, doScare, scare, setPos: (x, y) => { P.x = x; P.y = y; cam.x = camX(x - GW / 2); cam.y = camY(y - 8 - GH / 2); } };
+    window.__hawton = { P, game, cam, doScare, scare, forceBreak: () => { brk.t = 0; game.powerT = -100; updateBreaks(0.01); }, brkInfo: () => ({ doors: ['W', 'E'].filter(k => sec.door[k].broken), cams: [...brk.cams] }), secCam: () => sec.cam, setPos: (x, y) => { P.x = x; P.y = y; cam.x = camX(x - GW / 2); cam.y = camY(y - 8 - GH / 2); } };
   }
   if (/[?&]cut\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startCutscene(); } }, 50);

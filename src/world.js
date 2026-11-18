@@ -30,8 +30,7 @@ window.World = (() => {
     { id: 'lobby', name: 'RECEPÇÃO / LOBBY', rects: [[55, 70, 97, 91]], floor: 'lobby', wall: 'lobby', amb: 0.12, tint: '#6050c0' },
     { id: 'hallA', name: 'PARTY HALL A', rects: [[115, 4, 165, 21]], floor: 'wood', wall: 'party', amb: 0.09, tint: '#c08050' },
     { id: 'power1', name: 'POWER RM 1', rects: [[115, 23, 131, 37]], floor: 'concrete', wall: 'power', amb: 0.07, tint: '#40a060' },
-    { id: 'service', name: 'SERVICE', rects: [[133, 23, 136, 37]], floor: 'concrete', wall: 'power', amb: 0.07, tint: '#40a060' },
-    { id: 'svc', name: 'SERVICE', rects: [[138, 23, 142, 38]], floor: 'stars', wall: 'corridor', amb: 0.05, tint: '#4030a0' },
+    { id: 'service', name: 'SERVICE', rects: [[133, 23, 142, 37], [138, 38, 142, 38]], floor: 'concrete', wall: 'power', amb: 0.07, tint: '#40a060' },
     { id: 'power2', name: 'POWER RM 2', rects: [[144, 23, 165, 37]], floor: 'concrete', wall: 'power', amb: 0.07, tint: '#40a060' },
     { id: 'hallB', name: 'PARTY HALL B', rects: [[115, 40, 148, 61]], floor: 'wood', wall: 'party', amb: 0.09, tint: '#c08050' },
     { id: 'stairs', name: 'ESCADA DO PORÃO', rects: [[103, 69, 108, 85]], floor: 'stairs', wall: 'basement', amb: 0.03, tint: '#303050' },
@@ -56,9 +55,9 @@ window.World = (() => {
     { id: 'exit', r: [73, 92, 76, 92], type: 'exit', msg: 'As portas não abrem mais.' },
     { r: [75, 32, 75, 34], type: 'door' }, { r: [75, 54, 75, 56], type: 'door' },
     { r: [91, 62, 95, 62], type: 'arch', neon: '#ff4040' },
-    { r: [114, 10, 114, 12], type: 'door' }, { r: [139, 22, 141, 22], type: 'door' },
-    { r: [132, 31, 132, 33], type: 'door' }, { r: [137, 31, 137, 33], type: 'door' },
-    { r: [143, 31, 143, 33], type: 'door' }, { r: [139, 39, 141, 39], type: 'door' },
+    { r: [114, 10, 114, 12], type: 'door' }, { id: 'svcA', r: [139, 22, 141, 22], type: 'door', lock: true },
+    { r: [132, 31, 132, 33], type: 'door' },
+    { r: [143, 31, 143, 33], type: 'door' }, { id: 'svcB', r: [139, 39, 141, 39], type: 'door', lock: true },
     { r: [121, 62, 123, 62], type: 'door' }, { r: [139, 62, 141, 62], type: 'door' },
     { r: [109, 80, 109, 84], type: 'arch' },
     { id: 'back1', r: [30, 3, 33, 3], type: 'exit', double: true, msg: 'Trancada pelo lado de fora.' },
@@ -419,11 +418,12 @@ window.World = (() => {
     for (let i = 0; i < 3; i++) { const mx = x + 8 + i * 20; R(mx, y - 8, 16, 11, '#1a1e26'); R(mx + 1, y - 7, 14, 8, '#0a1018'); R(mx + 6, y + 3, 4, 2, '#2a2e36'); }
     R(x + 28, y + 6, 14, 3, '#2a2e36'); R(x + 50, y + 6, 4, 4, '#e8e8f0'); P(x + 51, y + 7, '#5a3a20');
     R(x + 58, y + 4, 8, 6, '#e8e4d0'); R(x + 59, y + 5, 6, 1, '#9a9688');
-    block(x, y + 2, 70, 12); block(x, y + 14, 16, 16);
-    const o = addObj({ kind: 'desk', x, y: y - 8, w: 70, h: 38, monitors: [0, 1, 2].map(i => [x + 9 + i * 20, y - 7, 14, 8]) });
+    block(x, y + 2, 70, 17); block(x, y + 14, 16, 18);
+    addObj({ kind: 'desk', x, y: y + 14, w: 16, h: 16 });
+    const o = addObj({ kind: 'desk', x, y: y - 8, w: 70, h: 24, monitors: [0, 1, 2].map(i => [x + 9 + i * 20, y - 7, 14, 8]) });
     return o;
   }
-  function officeChair(x, y) { R(x + 1, y, 8, 3, '#2a2e3a'); R(x, y + 3, 10, 6, '#3a3e4a'); R(x + 1, y + 4, 8, 3, '#4a4e5a'); R(x + 4, y + 9, 2, 2, '#1a1a20'); }
+  function officeChair(x, y) { R(x + 1, y, 8, 3, '#2a2e3a'); R(x, y + 3, 10, 6, '#3a3e4a'); R(x + 1, y + 4, 8, 3, '#4a4e5a'); R(x + 4, y + 9, 2, 2, '#1a1a20'); block(x, y + 4, 10, 7); addObj({ kind: 'chair', x, y, w: 10, h: 11 }); }
   function kiddieRide(x, y) {
     R(x, y + 26, 32, 3, 'rgba(0,0,0,0.4)');
     R(x + 2, y + 18, 28, 8, '#3a3a4a'); R(x + 2, y + 18, 28, 1, '#5a5a6e');
@@ -830,6 +830,42 @@ window.World = (() => {
 
     decor();
     cx = g;
+    // pôsteres jogados no chão dos arcades
+    if (window.POSTERS && POSTERS.length) {
+      const imgs = POSTERS.map(p => {
+        const c = document.createElement('canvas'); c.width = p.w; c.height = p.h;
+        const bin = atob(p.data), arr = new Uint8ClampedArray(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        c.getContext('2d').putImageData(new ImageData(arr, p.w, p.h), 0, 0);
+        return c;
+      });
+      const oData = og.getImageData(0, 0, W, H).data;
+      const free = (x0, y0, w, h) => {
+        for (let y = y0 - 2; y < y0 + h + 2; y += 2) for (let x = x0 - 2; x < x0 + w + 2; x += 2) {
+          if (x < 0 || y < 0 || x >= W || y >= H) return false;
+          const t = tAt(x >> 3, y >> 3);
+          if (t !== FLOOR || face[ti(x >> 3, y >> 3)] || solid[y * W + x] || oData[(y * W + x) * 4 + 3] > 0) return false;
+        }
+        return true;
+      };
+      let k = 0;
+      ROOMS.filter(r => /^arcade/.test(r.id)).forEach(rm => {
+        const [x0, y0, x1, y1] = rm.rects[0];
+        let placed = 0;
+        for (let tries = 0; tries < 400 && placed < 2; tries++) {
+          const img = imgs[k % imgs.length], ang = (rand() - 0.5) * 0.9;
+          const bw = Math.ceil(Math.abs(img.width * Math.cos(ang)) + Math.abs(img.height * Math.sin(ang))), bh = Math.ceil(Math.abs(img.width * Math.sin(ang)) + Math.abs(img.height * Math.cos(ang)));
+          const x = ri(x0 * T + 4, (x1 + 1) * T - bw - 4), y = ri((y0 + 1) * T + 4, (y1 + 1) * T - bh - 4);
+          if (!free(x, y, bw, bh)) continue;
+          g.save(); g.imageSmoothingEnabled = false;
+          g.translate(x + bw / 2, y + bh / 2); g.rotate(ang);
+          g.globalAlpha = 0.45; g.fillStyle = '#000'; g.fillRect(-img.width / 2 + 1, -img.height / 2 + 2, img.width, img.height);
+          g.globalAlpha = 0.92; g.drawImage(img, Math.round(-img.width / 2), Math.round(-img.height / 2));
+          g.restore(); g.globalAlpha = 1;
+          placed++; k++;
+        }
+      });
+    }
     g.drawImage(objC, 0, 0);
   }
 
@@ -862,8 +898,6 @@ window.World = (() => {
     L(596, 728, 26, '#ff2030', 0.05, 'emg'); L(70, 112, 20, '#ff2030', 0.05, 'emg');
     L(978, 500, 18, '#ff3030', 0.05, 'emg'); L(1124, 500, 18, '#ff3030', 0.05, 'emg'); L(1078, 196, 22, '#ff3030', 0.1, 'emg');
     L(1250, 660, 90, '#e0f0ff', 0.75, 'emg');
-    // luzes de corredor da segurança (controladas na mesa)
-    L(68, 150, 46, '#f4f0ff', 0, 'secW'); L(250, 96, 50, '#f4f0ff', 0, 'secE');
   }
 
   // ---------- salas para o jogo ----------
@@ -993,7 +1027,7 @@ window.World = (() => {
       ctx.fillStyle = st.powered ? o.c.mq : shade(o.c.mq, 0.35); ctx.fillRect(mx, my, mw, mh);
     }
     for (const o of objects) {
-      if (o.kind === 'desk') o.monitors.forEach(([x, y, w, h], i) => { ctx.fillStyle = st.powered ? (st.camOn && i === 1 ? '#5aff9a' : '#1a4a3a') : '#0a1018'; ctx.fillRect(x, y, w, h); if (st.powered) { ctx.fillStyle = '#8affc0'; ctx.fillRect(x + 1, y + 1 + ((t * 4 + i) % 6 | 0), w - 2, 1); } });
+      if (o.kind === 'desk' && o.monitors) o.monitors.forEach(([x, y, w, h], i) => { ctx.fillStyle = st.powered ? (st.camOn && i === 1 ? '#5aff9a' : '#1a4a3a') : '#0a1018'; ctx.fillRect(x, y, w, h); if (st.powered) { ctx.fillStyle = '#8affc0'; ctx.fillRect(x + 1, y + 1 + ((t * 4 + i) % 6 | 0), w - 2, 1); } });
       if (o.kind === 'gen' && st.gen) { ctx.fillStyle = Math.sin(t * 8) > 0 ? '#40ff60' : '#ffb030'; o.leds.forEach(([x, y]) => ctx.fillRect(x, y, 2, 2)); }
       if (o.kind === 'tv' && st.powered) { const [x, y, w, h] = o.screen; for (let j = 0; j < h; j++) { ctx.fillStyle = `rgba(${150 + Math.random() * 100 | 0},${150 + Math.random() * 100 | 0},${170 + Math.random() * 80 | 0},0.7)`; ctx.fillRect(x, y + j, w, 1); } }
     }
@@ -1019,6 +1053,7 @@ window.World = (() => {
     { id: 'gen', r: [1162, 206, 120, 20], label: '[E] dar partida no gerador' },
     { id: 'panel', r: [990, 196, 26, 18], label: '[E] abrir painel elétrico' },
     { id: 'desk', r: [80, 68, 64, 34], label: '[E] sentar na mesa de segurança' },
+    { id: 'key', r: [690, 620, 48, 18], label: '[E] pegar a chave' },
     { id: 'secret_in', r: [1252, 254, 30, 22], label: '[E] investigar a marca no chão', to: [1240, 640], msg: 'Uma passagem escondida...' },
     { id: 'secret_out', r: [1228, 608, 34, 14], label: '[E] subir', to: [1266, 248], msg: '' },
     { id: 'crack', r: [1108, 650, 18, 36], label: '[E] examinar rachadura', to: [1186, 670], msg: 'A parede cedeu.' },

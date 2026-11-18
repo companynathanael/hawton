@@ -15,6 +15,14 @@ As câmeras de segurança montam a sala de cada câmera em 3D (`src/cam3d.js`, c
 
 Ligada só com `window.HAWTON_VISION = true` ou `?vis` na URL. Só o cômodo onde o jogador está aparece; tudo fora das paredes dele fica preto (as câmeras continuam mostrando qualquer sala). A câmera segue o jogador sem parar na borda do mapa, então corredores ficam centralizados na tela. A troca de sala tem um fade rápido.
 
+## Chave, quebras e consertos
+
+- O corredor de serviço (que leva às salas de força) fica trancado. A chave está no balcão da recepção.
+- Com energia, de tempos em tempos uma porta de segurança ou uma câmera quebra:
+  - **Porta quebrada:** fica aberta e não responde na mesa. Vá até ela e faça o puzzle **Religar fios** (ligue cada fio no terminal de mesma cor e listra).
+  - **Câmera quebrada:** só mostra estática. No painel das câmeras, aperte R (ou toque no botão) e faça o puzzle **Sintonizar** (3 etapas: frequência, fase e amplitude).
+- Sem energia o prédio fica quase todo escuro, e a lanterna alcança mais longe.
+
 ## Sustos
 
 Enquanto a energia não volta, coisas acontecem a cada 14–26 segundos (o primeiro uns 15 s depois do início): tijolos e pedaços do teto despencam na frente do jogador e ficam no chão, uma lâmpada fluorescente cai e estoura com faíscas, uma porta aberta bate sozinha, um fliperama liga sozinho com som distorcido, a lanterna morre por alguns segundos, e o prédio treme soltando poeira. Quando a energia é ligada, os sustos param.
