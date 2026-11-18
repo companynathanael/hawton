@@ -33,7 +33,7 @@
   // ---------- recursos ----------
   const img = {};
   let loaded = 0;
-  const toLoad = [['map', 'assets/map.jpg'], ['facade', 'assets/facade.jpg']];
+  const toLoad = [['facade', 'assets/facade.jpg']];
   toLoad.forEach(([k, src]) => {
     const im = new Image();
     im.onload = () => { loaded++; };
@@ -850,13 +850,103 @@
     g.globalAlpha = 1;
   }
 
+  // =====================================================================
+  //  MAPA ESQUEMÁTICO — caixas = salas, linhas = corredores
+  // =====================================================================
+  const CORR = {
+    c1: [[26.5, 12.5], [28.5, 12.5], [28.5, 5.5], [108.5, 5.5], [108.5, 11.5], [114.5, 11.5]],
+    v: [[71.5, 5.5], [71.5, 65.5]],
+    c5: [[71.5, 65.5], [140.5, 65.5]],
+    c6: [[8.5, 15.5], [8.5, 89.5], [50.5, 89.5], [50.5, 70]],
+    mid: [[41.5, 36.5], [41.5, 62.5]],
+    svc: [[140.5, 22.5], [140.5, 39.5]],
+    stairs: [[105.5, 65.5], [105.5, 82.5]],
+  };
+  const MAP_LABEL = {
+    security: ['SEGURANCA', 'SEG'], arcade1: ['ARCADE 1', 'A1'], arcade2: ['ARCADE 2', 'A2'], arcade3: ['ARCADE 3', 'A3'],
+    arcade4: ['ARCADE 4', 'A4'], arcade5: ['ARCADE 5', 'A5'], kitchen: ['COZINHA', 'COZ'], lobby: ['LOBBY', 'LOB'],
+    hallA: ['SALAO A', 'SA'], hallB: ['SALAO B', 'SB'], power1: ['FORCA 1', 'F1'], power2: ['FORCA 2', 'F2'], basement: ['PORAO', 'P'],
+  };
+  const HIDDEN_ROOMS = { secret: 1 };
+  const troomS = new Int16Array(Wd.TW * Wd.TH).fill(-1);
+  Wd.ROOMS.forEach((rm, i) => { if (!CORR[rm.id] && !HIDDEN_ROOMS[rm.id]) rm.rects.forEach(([x0, y0, x1, y1]) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) troomS[y * Wd.TW + x] = i; }); });
+  const roomIdAtTile = (x, y) => { x = Math.floor(x); y = Math.floor(y); if (x < 0 || y < 0 || x >= Wd.TW || y >= Wd.TH) return null; for (const rm of Wd.ROOMS) for (const [x0, y0, x1, y1] of rm.rects) if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return rm.id; return null; };
+  function nearestOn(poly, px, py) {
+    let best = null, bd = 1e9;
+    for (let i = 0; i < poly.length - 1; i++) {
+      const [ax, ay] = poly[i], [bx, by] = poly[i + 1], dx = bx - ax, dy = by - ay;
+      const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+      const qx = ax + dx * t, qy = ay + dy * t, d = Math.hypot(px - qx, py - qy);
+      if (d < bd) { bd = d; best = [qx, qy]; }
+    }
+    return best;
+  }
+  // segmentos (em tiles) que formam a rede de corredores e ligações das portas
+  const MAP_LINES = [], MAP_EXITS = [];
+  for (const id in CORR) { const p = CORR[id]; for (let i = 0; i < p.length - 1; i++) MAP_LINES.push([p[i], p[i + 1]]); }
+  for (const d of Wd.DOORS) {
+    const [x0, y0, x1, y1] = d.r, cx = (x0 + x1 + 1) / 2, cy = (y0 + y1 + 1) / 2, horiz = (x1 - x0) >= (y1 - y0) && !(x0 === x1 && y1 > y0);
+    if (d.type === 'exit') { MAP_EXITS.push([x0, y0, x1 + 1, y1 + 1]); continue; }
+    const sides = horiz ? [[cx, y0 - 0.5], [cx, y1 + 1.5]] : [[x0 - 0.5, cy], [x1 + 1.5, cy]];
+    MAP_LINES.push([sides[0], sides[1]]);
+    for (const [sx, sy] of sides) { const id = roomIdAtTile(sx, sy); if (CORR[id]) MAP_LINES.push([[cx, cy], nearestOn(CORR[id], cx, cy)]); }
+  }
+  const schemCache = {};
+  // th = tema: cores {fill, edge, line, exit}
+  function schematic(w, h, th, key) {
+    const k = key + w + 'x' + h; if (schemCache[k]) return schemCache[k];
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const c = cv.getContext('2d'), sx = w / Wd.TW, sy = h / Wd.TH;
+    const id = new Int16Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) id[y * w + x] = troomS[Math.floor((y + 0.5) / sy) * Wd.TW + Math.floor((x + 0.5) / sx)];
+    const im = c.createImageData(w, h), px = im.data;
+    const hex = s => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
+    const F = hex(th.fill), E = hex(th.edge);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const v = id[y * w + x]; if (v < 0) continue;
+      const nb = (xx, yy) => xx < 0 || yy < 0 || xx >= w || yy >= h ? -2 : id[yy * w + xx];
+      const edge = nb(x - 1, y) !== v || nb(x + 1, y) !== v || nb(x, y - 1) !== v || nb(x, y + 1) !== v;
+      const col = edge ? E : F, o = (y * w + x) * 4;
+      px[o] = col[0]; px[o + 1] = col[1]; px[o + 2] = col[2]; px[o + 3] = 255;
+    }
+    c.putImageData(im, 0, 0);
+    const lw = th.lw || 1;
+    c.fillStyle = th.line;
+    for (const [[ax, ay], [bx, by]] of MAP_LINES) {
+      const x0 = ax * sx, y0 = ay * sy, x1 = bx * sx, y1 = by * sy, n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0)));
+      for (let i = 0; i <= n; i++) c.fillRect(Math.round(x0 + (x1 - x0) * i / n - lw / 2), Math.round(y0 + (y1 - y0) * i / n - lw / 2), lw, lw);
+    }
+    c.fillStyle = th.exit;
+    for (const [x0, y0, x1, y1] of MAP_EXITS) c.fillRect(Math.floor(x0 * sx), Math.floor(y0 * sy), Math.max(1, Math.round((x1 - x0) * sx)), Math.max(1, Math.round((y1 - y0) * sy)));
+    if (th.labels) {
+      Wd.ROOMS.forEach(rm => {
+        const L = MAP_LABEL[rm.id]; if (!L) return;
+        const r = rm.rects.reduce((a, b) => (b[2] - b[0]) * (b[3] - b[1]) > (a[2] - a[0]) * (a[3] - a[1]) ? b : a);
+        const bw = (r[2] - r[0] + 1) * sx, bh = (r[3] - r[1] + 1) * sy;
+        c.font = `8px ${FONT}`; c.textBaseline = 'middle'; c.textAlign = 'center';
+        const s = c.measureText(L[0]).width <= bw - 6 ? L[0] : L[1];
+        if (c.measureText(s).width > bw - 2 || bh < 10) return;
+        c.fillStyle = th.text; c.fillText(s, Math.round(((r[0] + r[2] + 1) / 2) * sx), Math.round(((r[1] + r[3] + 1) / 2) * sy) + 1);
+      });
+    }
+    schemCache[k] = cv;
+    return cv;
+  }
+  const MAP_THEME = { fill: '#1c1729', edge: '#9c8cc8', line: '#e8dcff', exit: '#ff4a5a', text: '#8a7cb0', lw: 2, labels: true };
+  const CAM_THEME = { fill: '#0f2a1a', edge: '#3fae66', line: '#a8ffc4', exit: '#ff4a4a', lw: 1 };
+
   function drawMap() {
-    g.fillStyle = 'rgba(4,2,10,0.88)'; g.fillRect(0, 0, GW, GH);
-    const s = (GW - 24) / MW, w = MW * s, h = MH * s, ox = (GW - w) / 2, oy = (GH - h) / 2 + 4;
-    g.imageSmoothingEnabled = true;
-    g.globalAlpha = 0.92; g.drawImage(img.map, ox, oy, w, h);
-    g.imageSmoothingEnabled = false; g.globalAlpha = 1;
-    g.strokeStyle = 'rgba(200,180,255,0.35)'; g.strokeRect(ox - 0.5, oy - 0.5, w + 1, h + 1);
+    g.fillStyle = 'rgba(4,2,10,0.96)'; g.fillRect(0, 0, GW, GH);
+    const s = (GW - 24) / MW, w = Math.round(MW * s), h = Math.round(MH * s), ox = Math.round((GW - w) / 2), oy = Math.round((GH - h) / 2 + 4);
+    if (fontReady) g.drawImage(schematic(w, h, MAP_THEME, 'big'), ox, oy);
+    // sala atual em destaque
+    const rm = roomAt(P.x, P.y);
+    const def = rm && Wd.ROOMS.find(r => r.id === rm.id);
+    if (def && !CORR[def.id] && !HIDDEN_ROOMS[def.id]) {
+      g.globalAlpha = 0.18 + 0.08 * Math.sin(game.t * 4); g.fillStyle = '#c8b8ff';
+      for (const [x0, y0, x1, y1] of def.rects) g.fillRect(ox + Math.round(x0 * 8 * s), oy + Math.round(y0 * 8 * s), Math.round((x1 - x0 + 1) * 8 * s), Math.round((y1 - y0 + 1) * 8 * s));
+      g.globalAlpha = 1;
+    }
     if (Math.floor(game.t * 3) % 2 === 0) {
       g.fillStyle = '#ff3050';
       g.fillRect(Math.round(ox + P.x * s) - 2, Math.round(oy + (P.y - 6) * s) - 2, 4, 4);
@@ -969,6 +1059,7 @@
     const [mx, my] = uiMouse();
     // botão fechar (canto do painel)
     if (click && mx > 322 && mx < 342 && my > 20 && my < 34) { game.ui = null; Sfx.click(); return; }
+    if (ui.type === 'arcade') { updateArcade(ui, dt, click, mx, my); return; }
 
     if (ui.type === 'gen') {
       ui.flash = Math.max(0, ui.flash - dt * 3); ui.shake = Math.max(0, ui.shake - dt * 10);
@@ -1031,6 +1122,7 @@
   function drawUI() {
     const ui = game.ui;
     if (ui.type === 'gen') return drawGen(ui);
+    if (ui.type === 'arcade') return drawArcade(ui);
     drawPanel(ui);
   }
 
@@ -1198,11 +1290,214 @@
     } else if (it.id === 'desk') sitDown();
     else if (it.to) teleport(it.to, it.msg);
   }
-  const ARCADE_MSG = ['GAME OVER', 'INSERT COIN', 'HIGH SCORE: ???', 'PLAYER 1 READY', 'CONTINUE? 9...', 'TOP SCORE: H.A.W.'];
+  // =====================================================================
+  //  FLIPERAMAS — puzzles jogáveis (sem recompensa)
+  // =====================================================================
+  const ARC_GAMES = ['luzes', 'deslize', 'memoria', 'torre', 'sequencia'];
+  const ARC_TITLE = { luzes: 'APAGUE AS LUZES', deslize: 'DESLIZE 8', memoria: 'MEMORIA', torre: 'TORRE', sequencia: 'SEQUENCIA' };
+  const ARC_HELP = {
+    luzes: 'APAGUE TODAS', deslize: 'ORDENE 1 A 8', memoria: 'ACHE OS PARES',
+    torre: 'LEVE TUDO PARA A DIREITA', sequencia: 'REPITA A SEQUENCIA',
+  };
+  const shade = (hex, k) => '#' + [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * k).toString(16).padStart(2, '0')).join('');
+  const AF = { x: 40, y: 18, w: 304, h: 180 };
   function playCabinet(c) {
     if (!game.powered) { Sfx.deny(); showMsg('Está desligado.'); return; }
-    c.playT = 1.4; Sfx.coin(); setTimeout(() => Sfx.blip(3), 180);
-    showMsg(ARCADE_MSG[(Math.random() * ARCADE_MSG.length) | 0]);
+    c.playT = 1.0; Sfx.coin(); setTimeout(() => Sfx.blip(3), 180);
+    const kind = ARC_GAMES[Wd.cabinets.indexOf(c) % ARC_GAMES.length];
+    game.ui = newArcade(kind, c);
+  }
+  function newArcade(kind, cab) {
+    const ui = { type: 'arcade', kind, cab, t: 0, moves: 0, won: false, wonT: 0, cur: [0, 0], col: cab ? cab.c.scr : '#4aff8a' };
+    if (kind === 'luzes') {
+      ui.n = 5; ui.cell = 20; ui.b = new Array(25).fill(0);
+      do { for (let i = 0; i < 12; i++) arcFlip(ui, (Math.random() * 25) | 0); } while (ui.b.every(v => !v));
+      ui.cur = [2, 2];
+    } else if (kind === 'deslize') {
+      ui.n = 3; ui.cell = 30; ui.b = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+      let last = -1;
+      for (let i = 0; i < 160 || arcSolved(ui); i++) {
+        const e = ui.b.indexOf(0), ex = e % 3, ey = (e / 3) | 0;
+        const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [ex + dx, ey + dy]).filter(([x, y]) => x >= 0 && y >= 0 && x < 3 && y < 3).map(([x, y]) => y * 3 + x).filter(j => j !== last);
+        const j = nb[(Math.random() * nb.length) | 0]; ui.b[e] = ui.b[j]; ui.b[j] = 0; last = e;
+      }
+      ui.cur = [1, 1];
+    } else if (kind === 'memoria') {
+      ui.n = 4; ui.cell = 24;
+      const v = []; for (let i = 0; i < 8; i++) v.push(i, i);
+      for (let i = v.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [v[i], v[j]] = [v[j], v[i]]; }
+      ui.b = v; ui.open = new Array(16).fill(0); ui.pick = []; ui.hideT = 0;
+    } else if (kind === 'torre') {
+      ui.pegs = [[4, 3, 2, 1], [], []]; ui.held = -1; ui.cur = [0, 0];
+    } else if (kind === 'sequencia') {
+      ui.seq = [(Math.random() * 4) | 0]; ui.step = 0; ui.show = 0.8; ui.lit = -1; ui.litT = 0; ui.goal = 6; ui.fail = 0; ui.play = 1;
+    }
+    return ui;
+  }
+  function arcFlip(ui, i) {
+    const x = i % 5, y = (i / 5) | 0;
+    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < 5 && yy < 5) ui.b[yy * 5 + xx] ^= 1; }
+  }
+  function arcSolved(ui) {
+    if (ui.kind === 'luzes') return ui.b.every(v => !v);
+    if (ui.kind === 'deslize') return ui.b.every((v, i) => v === (i + 1) % 9);
+    if (ui.kind === 'memoria') return ui.open.every(v => v === 2);
+    if (ui.kind === 'torre') return ui.pegs[2].length === 4;
+    if (ui.kind === 'sequencia') return ui.seq.length > ui.goal;
+    return false;
+  }
+  const arcBoard = ui => { const s = ui.n * ui.cell; return [Math.round(GW / 2 - s / 2), 50]; };
+  const TOWER_X = [112, 192, 272], TOWER_BASE = 164;
+  const PAD = [[150, 52], [196, 52], [150, 98], [196, 98]], PAD_S = 40, PAD_C = ['#ff4a5a', '#4aff8a', '#4a9aff', '#ffd24a'];
+  function arcPress(ui, i) {
+    if (ui.kind === 'luzes') { arcFlip(ui, i); ui.moves++; Sfx.blip(1); }
+    else if (ui.kind === 'deslize') {
+      const e = ui.b.indexOf(0), d = Math.abs(e % 3 - i % 3) + Math.abs(((e / 3) | 0) - ((i / 3) | 0));
+      if (d === 1) { ui.b[e] = ui.b[i]; ui.b[i] = 0; ui.moves++; Sfx.tick(); } else Sfx.deny();
+    } else if (ui.kind === 'memoria') {
+      if (ui.hideT > 0 || ui.open[i]) return;
+      ui.open[i] = 1; ui.pick.push(i); Sfx.blip(1);
+      if (ui.pick.length === 2) {
+        ui.moves++;
+        const [a, b] = ui.pick;
+        if (ui.b[a] === ui.b[b]) { ui.open[a] = ui.open[b] = 2; ui.pick = []; Sfx.ding(2); }
+        else ui.hideT = 0.8;
+      }
+    } else if (ui.kind === 'torre') {
+      const p = ui.pegs[i];
+      if (ui.held < 0) { if (p.length) { ui.held = i; Sfx.tick(); } }
+      else if (ui.held === i) { ui.held = -1; Sfx.tick(); }
+      else {
+        const d = ui.pegs[ui.held][ui.pegs[ui.held].length - 1];
+        if (!p.length || p[p.length - 1] > d) { p.push(ui.pegs[ui.held].pop()); ui.held = -1; ui.moves++; Sfx.clunk(); }
+        else { Sfx.deny(); ui.shake = 3; }
+      }
+    } else if (ui.kind === 'sequencia') {
+      if (ui.show > 0) return;
+      ui.lit = i; ui.litT = 0.25; Sfx.ding(i);
+      if (ui.seq[ui.step] === i) {
+        ui.step++;
+        if (ui.step >= ui.seq.length) { ui.moves = ui.seq.length; ui.seq.push((Math.random() * 4) | 0); ui.step = 0; ui.show = 0.9; }
+      } else { Sfx.deny(); ui.fail = 0.6; ui.seq = [(Math.random() * 4) | 0]; ui.step = 0; ui.show = 1.2; ui.moves = 0; }
+    }
+    if (arcSolved(ui)) { ui.won = true; ui.wonT = 0; Sfx.success(); }
+  }
+  function updateArcade(ui, dt, click, mx, my) {
+    if (ui.cab) ui.cab.playT = Math.max(ui.cab.playT, 0);
+    ui.shake = Math.max(0, (ui.shake || 0) - dt * 12);
+    if (ui.won) {
+      ui.wonT += dt;
+      if (ui.wonT > 0.6 && (actionPressed() || click)) { game.ui = newArcade(ui.kind, ui.cab); Sfx.coin(); }
+      return;
+    }
+    if (ui.kind === 'memoria' && ui.hideT > 0) { ui.hideT -= dt; if (ui.hideT <= 0) { for (const i of ui.pick) ui.open[i] = 0; ui.pick = []; } }
+    if (ui.kind === 'sequencia') {
+      ui.litT -= dt; ui.fail = Math.max(0, ui.fail - dt);
+      if (ui.show > 0) { ui.show -= dt; if (ui.show <= 0) { ui.play = 0; ui.playT = 0.2; } }
+      else if (ui.play < ui.seq.length) {
+        ui.playT -= dt;
+        if (ui.playT <= 0) { const v = ui.seq[ui.play]; ui.lit = v; ui.litT = 0.4; Sfx.ding(v); ui.play++; ui.playT = 0.6; }
+        return;
+      }
+    }
+    // cursor
+    const cols = ui.kind === 'torre' ? 3 : ui.kind === 'sequencia' ? 2 : ui.n, rows = ui.kind === 'torre' ? 1 : ui.kind === 'sequencia' ? 2 : ui.n;
+    const mv = (dx, dy) => { ui.cur = [clamp(ui.cur[0] + dx, 0, cols - 1), clamp(ui.cur[1] + dy, 0, rows - 1)]; ui.kb = true; };
+    if (consume('arrowleft') || consume('a')) mv(-1, 0);
+    if (consume('arrowright') || consume('d')) mv(1, 0);
+    if (consume('arrowup') || consume('w')) mv(0, -1);
+    if (consume('arrowdown') || consume('s')) mv(0, 1);
+    const busy = ui.kind === 'sequencia' && (ui.show > 0 || ui.play < ui.seq.length);
+    if (actionPressed() && !busy) arcPress(ui, ui.cur[1] * cols + ui.cur[0]);
+    if (click && !busy) {
+      let hit = -1;
+      if (ui.kind === 'torre') TOWER_X.forEach((x, i) => { if (Math.abs(mx - x) < 38 && my > 60 && my < TOWER_BASE + 8) hit = i; });
+      else if (ui.kind === 'sequencia') PAD.forEach(([x, y], i) => { if (mx >= x && my >= y && mx < x + PAD_S && my < y + PAD_S) hit = i; });
+      else { const [bx, by] = arcBoard(ui), tx = Math.floor((mx - bx) / ui.cell), ty = Math.floor((my - by) / ui.cell); if (tx >= 0 && ty >= 0 && tx < ui.n && ty < ui.n) hit = ty * ui.n + tx; }
+      if (hit >= 0) { ui.kb = false; ui.cur = [hit % cols, (hit / cols) | 0]; arcPress(ui, hit); }
+    }
+  }
+  const MEM_SHAPES = [
+    ['#ff4a5a', 'sq'], ['#4aff8a', 'ci'], ['#4a9aff', 'tr'], ['#ffd24a', 'di'],
+    ['#ff7aff', 'sq'], ['#7affff', 'tr'], ['#ffffff', 'ci'], ['#ff9a3a', 'di'],
+  ];
+  function shape(kind, cx, cy, r, col) {
+    g.fillStyle = col;
+    if (kind === 'sq') g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    else for (let y = -r; y <= r; y++) {
+      const w = kind === 'ci' ? Math.round(Math.sqrt(r * r - y * y)) : kind === 'di' ? r - Math.abs(y) : Math.round((y + r) / 2);
+      g.fillRect(cx - w, cy + y, w * 2 + (kind === 'tr' ? 1 : 0), 1);
+    }
+  }
+  function drawArcade(ui) {
+    const { x, y, w, h } = AF, col = ui.col, sh = Math.round((Math.random() - 0.5) * (ui.shake || 0));
+    g.fillStyle = 'rgba(2,1,6,0.96)'; g.fillRect(0, 0, GW, GH);
+    // gabinete: moldura colorida + tela preta
+    g.fillStyle = '#0b0910'; g.fillRect(x - 3, y - 3, w + 6, h + 6);
+    g.fillStyle = col; g.fillRect(x - 2, y - 2, w + 4, h + 4);
+    g.fillStyle = '#05040a'; g.fillRect(x, y, w, h);
+    g.fillStyle = '#000'; g.fillRect(x + 4, y + 4, w - 8, h - 8);
+    text(ARC_TITLE[ui.kind], GW / 2, y + 8, col, 'center');
+    text('ESC', x + w - 22, y + 6, '#6a6078');
+    const tgl = Math.floor(ui.t * 4) % 2;
+    g.save(); g.translate(sh, 0);
+    if (ui.kind === 'luzes' || ui.kind === 'deslize' || ui.kind === 'memoria') {
+      const [bx, by] = arcBoard(ui), c = ui.cell;
+      for (let i = 0; i < ui.n * ui.n; i++) {
+        const cx = bx + (i % ui.n) * c, cy = by + ((i / ui.n) | 0) * c;
+        if (ui.kind === 'luzes') {
+          g.fillStyle = ui.b[i] ? '#ffe070' : '#1c1a24'; g.fillRect(cx + 1, cy + 1, c - 2, c - 2);
+          if (ui.b[i]) { g.fillStyle = '#fff8c0'; g.fillRect(cx + 3, cy + 3, c - 10, 2); }
+        } else if (ui.kind === 'deslize') {
+          if (!ui.b[i]) continue;
+          const ok = ui.b[i] === i + 1;
+          g.fillStyle = ok ? shade(col, 0.6) : '#2a2636'; g.fillRect(cx + 1, cy + 1, c - 2, c - 2);
+          g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(cx + 1, cy + 1, c - 2, 2);
+          text(String(ui.b[i]), cx + c / 2 + 1, cy + c / 2 - 3, ok ? '#fff' : '#c8c0d8', 'center');
+        } else {
+          const o = ui.open[i];
+          g.fillStyle = o ? '#141220' : '#2c2840'; g.fillRect(cx + 1, cy + 1, c - 2, c - 2);
+          if (o) { const [sc, sk] = MEM_SHAPES[ui.b[i]]; shape(sk, cx + c / 2, cy + c / 2, 6, o === 2 ? sc : shade(sc, 0.8)); }
+          else { g.fillStyle = '#3c3858'; g.fillRect(cx + c / 2 - 1, cy + c / 2 - 1, 2, 2); }
+        }
+      }
+      if (ui.kb !== false && tgl) {
+        g.strokeStyle = col; g.lineWidth = 1;
+        g.strokeRect(bx + ui.cur[0] * c + 0.5, by + ui.cur[1] * c + 0.5, c - 1, c - 1);
+      }
+    } else if (ui.kind === 'torre') {
+      const discC = ['#ff4a5a', '#ffd24a', '#4aff8a', '#4a9aff'];
+      g.fillStyle = '#3a3346'; g.fillRect(70, TOWER_BASE, 244, 4);
+      TOWER_X.forEach((px, i) => {
+        g.fillStyle = i === 2 ? shade(col, 0.6) : '#3a3346'; g.fillRect(px - 1, 76, 3, TOWER_BASE - 76);
+        ui.pegs[i].forEach((d, k) => {
+          const lift = ui.held === i && k === ui.pegs[i].length - 1 ? 64 - k * 12 + Math.sin(ui.t * 6) * 2 : 0;
+          const dw = 12 + d * 12, dy = TOWER_BASE - 11 - k * 12 - lift;
+          g.fillStyle = discC[d - 1]; g.fillRect(px - dw / 2, dy, dw, 10);
+          g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(px - dw / 2, dy, dw, 2);
+        });
+        if (ui.kb !== false && ui.cur[0] === i && tgl) { g.fillStyle = col; g.fillRect(px - 4, TOWER_BASE + 8, 9, 2); }
+      });
+    } else if (ui.kind === 'sequencia') {
+      PAD.forEach(([px, py], i) => {
+        const on = ui.lit === i && ui.litT > 0;
+        g.fillStyle = on ? PAD_C[i] : shade(PAD_C[i], 0.28); g.fillRect(px, py, PAD_S - 2, PAD_S - 2);
+        if (on) { g.globalAlpha = 0.35; g.fillStyle = '#fff'; g.fillRect(px + 4, py + 4, PAD_S - 10, 4); g.globalAlpha = 1; }
+        if (ui.kb !== false && ui.cur[1] * 2 + ui.cur[0] === i && tgl && ui.show <= 0) { g.strokeStyle = '#fff'; g.strokeRect(px - 1.5, py - 1.5, PAD_S + 1, PAD_S + 1); }
+      });
+      text(ui.fail > 0 ? 'ERROU!' : ui.show > 0 || ui.play < ui.seq.length ? 'OBSERVE' : 'SUA VEZ', GW / 2, 144, ui.fail > 0 ? '#ff5a4a' : '#c8c0d8', 'center');
+      // progresso
+      for (let i = 0; i < ui.goal; i++) { g.fillStyle = i < ui.seq.length - 1 ? col : '#2a2636'; g.fillRect(GW / 2 - ui.goal * 5 + i * 10, 158, 8, 4); }
+    }
+    g.restore();
+    const footer = ui.kind === 'sequencia' ? `${ARC_HELP[ui.kind]}` : `${ARC_HELP[ui.kind]}   JOGADAS ${ui.moves}`;
+    text(footer, GW / 2, y + h - 16, '#7a6f8a', 'center');
+    if (ui.won) {
+      g.fillStyle = 'rgba(0,0,0,0.65)'; g.fillRect(x + 4, y + 4, w - 8, h - 8);
+      text('COMPLETO!', GW / 2, 88, tgl ? '#ffffff' : col, 'center');
+      if (ui.kind !== 'sequencia') text(`${ui.moves} JOGADAS`, GW / 2, 104, '#c8c0d8', 'center');
+      if (ui.wonT > 0.6) text(isTouch ? 'TOQUE: DE NOVO' : 'E: DE NOVO   ESC: SAIR', GW / 2, 128, '#7a6f8a', 'center');
+    }
   }
 
   // =====================================================================
@@ -1347,7 +1642,7 @@
     // mapa (planta) com os botões das câmeras
     const M = CMAP;
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(M.x - 3, M.y - 3, M.w + 6, M.h + 6);
-    g.imageSmoothingEnabled = true; g.globalAlpha = 0.8; g.drawImage(img.map, M.x, M.y, M.w, M.h); g.globalAlpha = 1; g.imageSmoothingEnabled = false;
+    if (fontReady) g.drawImage(schematic(M.w, M.h, CAM_THEME, 'cam'), M.x, M.y);
     g.strokeStyle = '#4aff8a'; g.lineWidth = 1; g.strokeRect(M.x - 2.5, M.y - 2.5, M.w + 5, M.h + 5);
     // jogador (você)
     g.fillStyle = '#ffffff'; g.fillRect(Math.round(M.x + P.x * M.w / MW) - 1, Math.round(M.y + P.y * M.h / MH) - 2, 3, 3);

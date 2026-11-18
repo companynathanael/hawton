@@ -1014,7 +1014,7 @@ window.World = (() => {
   ];
 
   return {
-    T, W, H, TW, TH, canvas, objCanvas: objC, outsideC, solid, rooms, lights, doors, cabinets, objects, interact, cameras,
+    T, W, H, TW, TH, canvas, objCanvas: objC, outsideC, solid, rooms, lights, doors, cabinets, objects, interact, cameras, ROOMS, DOORS,
     spawn: [600, 724], walkable, occludes, doorAt, drawDynamic, drawFront, drawScreen,
     tileAt: (x, y) => tAt(x >> 3, y >> 3), FLOOR, DOOR,
   };
