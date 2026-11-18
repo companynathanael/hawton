@@ -770,7 +770,6 @@ window.World = (() => {
     R(928, 230, 24, 30, '#5a5f6a'); R(930, 232, 20, 26, '#4a4e58'); for (let i = 0; i < 6; i++) R(932, 234 + i * 4, 16, 1, '#3a3e48'); block(928, 240, 24, 20); addObj({ kind: 'transformer', x: 928, y: 230, w: 24, h: 30 });
     { const pc = cx; cx = g; for (let i = 0; i < 40; i++) P(960 + i * 2, 262 + Math.round(Math.sin(i * 0.4) * 2), '#151518'); cx = pc; }
     // SERVICE
-    R(1068, 184, 24, 4, '#3a3e48'); R(1070, 176, 20, 12, '#8a949e'); R(1072, 178, 16, 10, '#a8b0b8'); P(1086, 183, '#3a3e48');
     R(1066, 280, 8, 8, '#e8c030'); R(1068, 278, 4, 3, '#8a7a5a'); block(1066, 282, 8, 6);
     // POWER RM 2
     generator(1162, 182); generator(1204, 182); generator(1246, 182);
@@ -852,7 +851,7 @@ window.World = (() => {
       ROOMS.filter(r => /^arcade/.test(r.id)).forEach(rm => {
         const [x0, y0, x1, y1] = rm.rects[0];
         let placed = 0;
-        for (let tries = 0; tries < 400 && placed < 2; tries++) {
+        for (let tries = 0; tries < 600 && placed < 3; tries++) {
           const img = imgs[k % imgs.length], ang = (rand() - 0.5) * 0.9;
           const bw = Math.ceil(Math.abs(img.width * Math.cos(ang)) + Math.abs(img.height * Math.sin(ang))), bh = Math.ceil(Math.abs(img.width * Math.sin(ang)) + Math.abs(img.height * Math.cos(ang)));
           const x = ri(x0 * T + 4, (x1 + 1) * T - bw - 4), y = ri((y0 + 1) * T + 4, (y1 + 1) * T - bh - 4);
@@ -896,7 +895,7 @@ window.World = (() => {
     // emergência (sempre acesas)
     L(1265, 268, 26, '#ff2040', 0.7, 'emg');
     L(596, 728, 26, '#ff2030', 0.05, 'emg'); L(70, 112, 20, '#ff2030', 0.05, 'emg');
-    L(978, 500, 18, '#ff3030', 0.05, 'emg'); L(1124, 500, 18, '#ff3030', 0.05, 'emg'); L(1078, 196, 22, '#ff3030', 0.1, 'emg');
+    L(978, 500, 18, '#ff3030', 0.05, 'emg'); L(1124, 500, 18, '#ff3030', 0.05, 'emg'); L(1124, 194, 26, '#ff3030', 0.1, 'emg'); L(1124, 300, 26, '#ff3030', 0.1, 'emg');
     L(1250, 660, 90, '#e0f0ff', 0.75, 'emg');
   }
 

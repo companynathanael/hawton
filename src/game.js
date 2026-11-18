@@ -898,6 +898,7 @@
   }
 
   let VW = GW, VH = GH;
+  let plC = null;
   function drawScene(cx, cy, o) {
     if (lightC.width !== VW || lightC.height !== VH) { lightC.width = VW; lightC.height = VH; }
     const st = { powered: game.powered, gen: game.gen, camOn: sec.cams };
@@ -980,6 +981,19 @@
     }
     if (composed) { g.globalCompositeOperation = 'copy'; g.drawImage(composed, 0, 0); g.globalCompositeOperation = 'source-over'; }
     else { g.globalCompositeOperation = 'multiply'; g.drawImage(lightC, 0, 0); }
+    // jogador sempre legível: camada leve por cima da luz (atrás de móveis continua escondido)
+    if (!o.cam && px > -20 && py > -20 && px < VW + 20 && py < VH + 30) {
+      if (!plC) { plC = document.createElement('canvas'); }
+      if (plC.width !== VW || plC.height !== VH) { plC.width = VW; plC.height = VH; }
+      const pc = plC.getContext('2d');
+      pc.globalCompositeOperation = 'source-over'; pc.clearRect(0, 0, VW, VH);
+      pc.drawImage(Sprite.frames[P.dir][P.frame], px - 7, py - 20);
+      pc.globalCompositeOperation = 'destination-out';
+      Wd.drawFront(pc, cx, cy, Math.round(P.x), Math.round(P.y), game.t, st);
+      pc.globalCompositeOperation = 'source-over';
+      g.globalCompositeOperation = 'source-over'; g.globalAlpha = game.powered ? 0.4 : 0.5;
+      g.drawImage(plC, 0, 0); g.globalAlpha = 1;
+    }
 
     // ---- brilho aditivo ----
     g.globalCompositeOperation = 'lighter';
