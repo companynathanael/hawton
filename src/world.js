@@ -957,7 +957,7 @@ window.World = (() => {
     ctx.save(); ctx.translate(-cx0, -cy0);
     for (const o of cabinets) {
       if (!o.screen || o.x > cx0 + vw || o.x + o.w < cx0 || o.y > cy0 + vh || o.y + o.h < cy0) continue;
-      drawScreen(ctx, o, t, st.powered);
+      drawScreen(ctx, o, t, st.powered || o.playT > 0);
       const [mx, my, mw, mh] = o.marquee;
       ctx.fillStyle = st.powered ? o.c.mq : shade(o.c.mq, 0.35); ctx.fillRect(mx, my, mw, mh);
     }
@@ -979,7 +979,7 @@ window.World = (() => {
       if (bottom <= py) continue;
       if (o.x > px + 8 || o.x + o.w < px - 8 || o.y > py || bottom < py - 22) continue;
       ctx.drawImage(objC, o.x, o.y, o.w, o.h, o.x - cx0, o.y - cy0, o.w, o.h);
-      if (o.screen && o.kind === 'cab') { ctx.save(); ctx.translate(-cx0, -cy0); drawScreen(ctx, o, t, st.powered); ctx.restore(); }
+      if (o.screen && o.kind === 'cab') { ctx.save(); ctx.translate(-cx0, -cy0); drawScreen(ctx, o, t, st.powered || o.playT > 0); ctx.restore(); }
     }
   }
 

@@ -460,6 +460,7 @@
     game.gen = game.powered = false; game.ui = null; game.intro = false; game.energy = 100;
     sec.seated = sec.cams = false; sec.light.W = sec.light.E = false;
     for (const d of Wd.doors) { d.open = d.type === 'arch' || d.type === 'security'; d.anim = d.open ? 1 : 0; }
+    resetScares();
     if (/[?&]lit\b/.test(location.search)) { game.gen = true; game.genT = -99; game.powered = true; game.powerT = -99; }
   }
 
@@ -649,10 +650,210 @@
       if (m.x < cam.x - 10) m.x += GW + 20; if (m.x > cam.x + GW + 10) m.x -= GW + 20;
       if (m.y < cam.y - 10) m.y += GH + 20; if (m.y > cam.y + GH + 10) m.y -= GH + 20;
     }
+    updateScares(dt);
     for (let i = puffs.length - 1; i >= 0; i--) {
       const p = puffs[i]; p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.life <= 0) puffs.splice(i, 1);
     }
+  }
+
+  // =====================================================================
+  //  SUSTOS — só antes da energia voltar (tijolos, lâmpadas, portas...)
+  // =====================================================================
+  const debris = [], falling = [], sparks = [], smoke = [], flashes = [];
+  const SCARE_ORDER = ['bricks', 'cabinet', 'lamp', 'slam', 'flash', 'rumble', 'bricks', 'lamp'];
+  const scare = { t: 9, n: 0, last: '', pending: [] };
+  function resetScares() {
+    debris.length = falling.length = sparks.length = smoke.length = flashes.length = 0;
+    scare.t = 9; scare.n = 0; scare.last = ''; scare.pending.length = 0; game.flashOut = 0;
+  }
+  const clearSpot = (x, y) => Wd.walkable(x, y) && Wd.walkable(x - 4, y) && Wd.walkable(x + 4, y) && Wd.walkable(x, y - 3) && !Wd.occludes(x, y - 4);
+  function spotAhead(min, max) {
+    for (let k = 0; k < 24; k++) {
+      const d = rnd(min, max), a = P.aim + rnd(-0.35, 0.35);
+      const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
+      // linha de visão livre até o ponto
+      let ok = clearSpot(x, y);
+      for (let s = 0.2; ok && s < 1; s += 0.2) if (Wd.occludes(P.x + (x - P.x) * s, P.y - 6 + (y - P.y) * s)) ok = false;
+      if (ok) return [x, y];
+    }
+    return null;
+  }
+  const later = (dt, fn) => scare.pending.push({ t: dt, fn });
+  function dropThing(x, y, kind, delay, h) {
+    falling.push({ x, y, h: h || rnd(70, 95), vh: 0, kind, delay, spin: Math.random() * 6, landed: false });
+  }
+  function dustBurst(x, y, n, spread) {
+    for (let i = 0; i < n; i++) smoke.push({ x: x + rnd(-spread, spread), y: y + rnd(-spread / 2, spread / 2), vx: rnd(-14, 14), vy: rnd(-8, 4), r: rnd(3, 7), life: rnd(1.2, 2.6), max: 2.6 });
+  }
+  function doScare(kind) {
+    if (kind === 'bricks') {
+      const sp = spotAhead(26, 52); if (!sp) return false;
+      Sfx.pebbles(); cam.shake = 1;
+      for (let i = 0; i < 7; i++) falling.push({ x: sp[0] + rnd(-6, 6), y: sp[1] + rnd(-3, 3), h: rnd(60, 90), vh: 0, kind: 'grit', delay: rnd(0, 0.5), landed: false });
+      const n = 9 + ((Math.random() * 5) | 0);
+      for (let i = 0; i < n; i++) dropThing(sp[0] + rnd(-13, 13), sp[1] + rnd(-6, 6), 'brick', 0.8 + i * 0.05 + rnd(0, 0.08));
+      dropThing(sp[0] + rnd(-4, 4), sp[1] + rnd(-2, 2), 'slab', 0.78);
+      if (Math.random() < 0.6) dropThing(sp[0] + rnd(-10, 10), sp[1] + rnd(-4, 4), 'slab', 0.95);
+      later(0.95, () => { Sfx.crash(1); cam.shake = 6; post.glitch = Math.max(post.glitch, 0.35); dustBurst(sp[0], sp[1], 34, 14); });
+      return true;
+    }
+    if (kind === 'lamp') {
+      const sp = spotAhead(24, 46); if (!sp) return false;
+      Sfx.zap(); flashes.push({ x: sp[0], y: sp[1] - 30, life: 0.35, max: 0.35, c: '#d8f0ff', r: 90 });
+      dropThing(sp[0], sp[1], 'tube', 0.25, 80);
+      later(0.62, () => {
+        Sfx.glass(); cam.shake = 3.5;
+        flashes.push({ x: sp[0], y: sp[1], life: 0.5, max: 0.5, c: '#bfe6ff', r: 120 });
+        for (let i = 0; i < 26; i++) sparks.push({ x: sp[0], y: sp[1], z: 2, vx: rnd(-60, 60), vy: rnd(-30, 30), vz: rnd(20, 80), life: rnd(0.3, 0.9) });
+        dustBurst(sp[0], sp[1], 8, 6);
+      });
+      return true;
+    }
+    if (kind === 'slam') {
+      let best = null, bd = 170;
+      for (const d of Wd.doors) {
+        if (d.type !== 'door' || !d.open || playerInDoor(d)) continue;
+        const dist = Math.hypot(d.cx - P.x, d.cy - P.y);
+        if (dist < bd && dist > 30) { bd = dist; best = d; }
+      }
+      if (!best) return false;
+      best.open = false; best.anim = Math.min(best.anim, 0.3); Sfx.slam(); cam.shake = 4; post.glitch = Math.max(post.glitch, 0.3);
+      dustBurst(best.cx, best.cy + 6, 10, 8);
+      return true;
+    }
+    if (kind === 'cabinet') {
+      let best = null, bd = 150;
+      for (const c of Wd.cabinets) {
+        if (!c.screen) continue;
+        const dist = Math.hypot(c.x + 8 - P.x, c.y + 20 - P.y);
+        if (dist < bd && dist > 24) { bd = dist; best = c; }
+      }
+      if (!best) return false;
+      best.playT = 1.4; Sfx.glitchCab(); Sfx.sting(); post.glitch = Math.max(post.glitch, 0.6); cam.shake = 2;
+      return true;
+    }
+    if (kind === 'flash') {
+      if (!P.flash) return false;
+      game.flashOut = 3.2; Sfx.zap();
+      later(0.9, () => Sfx.heartbeat()); later(1.9, () => Sfx.heartbeat());
+      later(2.7, () => { Sfx.sting(); cam.shake = 2.5; });
+      return true;
+    }
+    if (kind === 'rumble') {
+      Sfx.rumble(2.6); cam.shake = 2;
+      for (let i = 0; i < 6; i++) later(0.3 + i * 0.25, () => {
+        cam.shake = Math.max(cam.shake, 3);
+        const x = cam.x + rnd(20, GW - 20), y = cam.y + rnd(30, GH - 10);
+        if (!clearSpot(x, y)) return;
+        for (let j = 0; j < 5; j++) falling.push({ x: x + rnd(-4, 4), y: y + rnd(-2, 2), h: rnd(50, 90), vh: 0, kind: 'grit', delay: rnd(0, 0.3), landed: false });
+        later(0.5, () => dustBurst(x, y, 5, 4));
+      });
+      later(1.6, () => { if (Math.random() < 0.6) { const sp = spotAhead(30, 60); if (sp) { dropThing(sp[0], sp[1], 'brick', 0); later(0.35, () => { Sfx.crash(0.6); cam.shake = 4; dustBurst(sp[0], sp[1], 8, 5); }); } } });
+      return true;
+    }
+    return false;
+  }
+  function updateScares(dt) {
+    for (let i = scare.pending.length - 1; i >= 0; i--) { const p = scare.pending[i]; p.t -= dt; if (p.t <= 0) { scare.pending.splice(i, 1); p.fn(); } }
+    const active = !game.powered && !game.ui && !sec.seated && !game.tp && !game.map && state === 'game';
+    if (active && game.t > 5) {
+      scare.t -= dt;
+      if (scare.t <= 0) {
+        let kinds = scare.n < SCARE_ORDER.length ? [SCARE_ORDER[scare.n]] : [];
+        kinds = kinds.concat(['bricks', 'lamp', 'slam', 'cabinet', 'flash', 'rumble'].filter(k => k !== scare.last).sort(() => Math.random() - 0.5));
+        const k = kinds.find(doScare);
+        if (k) { scare.last = k; scare.n++; scare.t = rnd(14, 26); } else scare.t = 2;
+      }
+    }
+    // objetos caindo
+    for (let i = falling.length - 1; i >= 0; i--) {
+      const f = falling[i];
+      if (f.delay > 0) { f.delay -= dt; continue; }
+      f.vh += 420 * dt; f.h -= f.vh * dt; f.spin += dt * 14;
+      if (f.h <= 0) {
+        falling.splice(i, 1);
+        if (f.kind === 'brick') { debris.push({ x: f.x, y: f.y, kind: 'brick', r: Math.random() < 0.5, c: Math.random() }); for (let j = 0; j < 3; j++) debris.push({ x: f.x + rnd(-5, 5), y: f.y + rnd(-3, 3), kind: 'chip', c: Math.random() }); }
+        else if (f.kind === 'slab') { debris.push({ x: f.x, y: f.y, kind: 'slab', c: Math.random() }); for (let j = 0; j < 6; j++) debris.push({ x: f.x + rnd(-9, 9), y: f.y + rnd(-4, 4), kind: 'chip', c: Math.random() * 0.5 }); }
+        else if (f.kind === 'tube') { debris.push({ x: f.x - 4, y: f.y, kind: 'tube' }); for (let j = 0; j < 12; j++) debris.push({ x: f.x + rnd(-10, 10), y: f.y + rnd(-5, 5), kind: 'glass' }); }
+        else if (f.kind === 'grit' && Math.random() < 0.5) debris.push({ x: f.x, y: f.y, kind: 'chip', c: Math.random() });
+      }
+    }
+    if (debris.length > 900) debris.splice(0, debris.length - 900);
+    for (let i = sparks.length - 1; i >= 0; i--) { const s = sparks[i]; s.life -= dt; s.vz -= 260 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.z = Math.max(0, s.z + s.vz * dt); if (s.z === 0) { s.vz *= -0.3; s.vx *= 0.6; s.vy *= 0.6; } if (s.life <= 0) sparks.splice(i, 1); }
+    for (let i = smoke.length - 1; i >= 0; i--) { const s = smoke[i]; s.life -= dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vx *= 0.97; s.vy *= 0.97; s.r += dt * 4; if (s.life <= 0) smoke.splice(i, 1); }
+    for (let i = flashes.length - 1; i >= 0; i--) { flashes[i].life -= dt; if (flashes[i].life <= 0) flashes.splice(i, 1); }
+    // lanterna falhando
+    if (game.flashOut > 0) {
+      game.flashOut -= dt;
+      game.flashFlick = game.flashOut > 2.6 ? (Math.random() < 0.5 ? 0 : 0.8) : game.flashOut > 0.4 ? 0 : (Math.random() < 0.5 ? 0.2 : 1);
+    }
+  }
+  function drawDebris(cx, cy) {
+    for (const d of debris) {
+      const x = Math.round(d.x - cx), y = Math.round(d.y - cy);
+      if (x < -10 || y < -10 || x > VW + 10 || y > VH + 10) continue;
+      if (d.kind === 'brick') {
+        const w = d.r ? 4 : 7, h = d.r ? 6 : 4;
+        g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(x - w / 2 + 1, y - h + 1, w, h);
+        g.fillStyle = d.c < 0.5 ? '#8a3e2e' : '#7a3a30'; g.fillRect(x - w / 2, y - h, w, h);
+        g.fillStyle = '#b25a40'; g.fillRect(x - w / 2, y - h, w, 1);
+        g.fillStyle = '#4a2018'; g.fillRect(x - w / 2, y - 1, w, 1);
+      } else if (d.kind === 'slab') {
+        g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(x - 6, y - 4, 14, 6);
+        g.fillStyle = d.c < 0.5 ? '#6e6a66' : '#625e5a'; g.fillRect(x - 7, y - 6, 13, 6); g.fillRect(x - 5, y - 7, 8, 1);
+        g.fillStyle = '#8e8a84'; g.fillRect(x - 7, y - 6, 13, 1);
+        g.fillStyle = '#3e3a38'; g.fillRect(x - 2, y - 5, 1, 3); g.fillRect(x - 1, y - 3, 3, 1); g.fillRect(x - 7, y - 1, 13, 1);
+        g.fillStyle = '#7a3a30'; g.fillRect(x + 2, y - 5, 3, 2);
+      } else if (d.kind === 'chip') {
+        g.fillStyle = d.c < 0.4 ? '#9a9088' : d.c < 0.7 ? '#7a3a30' : '#5a5450'; g.fillRect(x, y, 1 + (d.c > 0.8), 1);
+      } else if (d.kind === 'tube') {
+        g.fillStyle = '#c8d4dc'; g.fillRect(x, y - 1, 5, 2); g.fillRect(x + 7, y, 4, 2);
+        g.fillStyle = '#5a6068'; g.fillRect(x - 1, y - 1, 1, 2); g.fillRect(x + 11, y, 1, 2);
+      } else if (d.kind === 'glass') {
+        g.fillStyle = 'rgba(220,240,255,0.7)'; g.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+  function drawFalling(cx, cy) {
+    for (const f of falling) {
+      if (f.delay > 0) continue;
+      const x = Math.round(f.x - cx), y = Math.round(f.y - cy), hy = Math.round(y - f.h);
+      const sh = clamp(1 - f.h / 100, 0.15, 1);
+      g.fillStyle = `rgba(0,0,0,${0.45 * sh})`;
+      g.beginPath(); g.ellipse(x, y, 1 + 3 * sh, 0.6 + 1.2 * sh, 0, 0, Math.PI * 2); g.fill();
+      if (f.kind === 'brick') {
+        const r = Math.floor(f.spin) % 2, w = r ? 4 : 7, h = r ? 6 : 4;
+        g.fillStyle = '#8a3e2e'; g.fillRect(x - w / 2, hy - h, w, h);
+        g.fillStyle = '#b25a40'; g.fillRect(x - w / 2, hy - h, w, 1);
+      } else if (f.kind === 'slab') {
+        g.fillStyle = '#6e6a66'; g.fillRect(x - 7, hy - 6, 13, 6); g.fillStyle = '#8e8a84'; g.fillRect(x - 7, hy - 6, 13, 1);
+      } else if (f.kind === 'tube') {
+        const r = Math.floor(f.spin / 2) % 2;
+        g.fillStyle = '#e8f4ff'; if (r) g.fillRect(x - 6, hy - 2, 12, 2); else g.fillRect(x - 1, hy - 8, 2, 10);
+        g.fillStyle = '#5a6068'; if (r) { g.fillRect(x - 7, hy - 2, 1, 2); g.fillRect(x + 6, hy - 2, 1, 2); }
+      } else { g.fillStyle = '#8a8078'; g.fillRect(x, hy, 1, 1); }
+    }
+    for (const s of smoke) {
+      const a = 0.35 * clamp(s.life / s.max, 0, 1) * clamp(s.life * 3, 0, 1);
+      g.fillStyle = `rgba(150,140,130,${a})`;
+      g.beginPath(); g.arc(s.x - cx, s.y - cy - 3, s.r, 0, Math.PI * 2); g.fill();
+    }
+  }
+  function lightScares(cx, cy) {
+    for (const f of flashes) {
+      const R = f.r * 2;
+      lg.globalAlpha = (f.life / f.max) * (Math.random() < 0.3 ? 0.4 : 1);
+      lg.drawImage(glow(f.c), f.x - cx - R / 2, f.y - cy - R / 2, R, R);
+    }
+    for (const s of sparks) { lg.globalAlpha = 0.5 * Math.min(1, s.life * 2); lg.drawImage(glow('#ffd890'), s.x - cx - 8, s.y - s.z - cy - 8, 16, 16); }
+  }
+  function drawSparks(cx, cy) {
+    for (const s of sparks) {
+      g.globalAlpha = Math.min(1, s.life * 2); g.fillStyle = s.life > 0.4 ? '#fff6c0' : '#ffa040';
+      g.fillRect(Math.round(s.x - cx), Math.round(s.y - s.z - cy), 1, 1);
+    }
+    g.globalAlpha = 1;
   }
 
   function drawCone(ctx, x, y, ang, len, half, a, rgb) {
@@ -683,6 +884,7 @@
     g.drawImage(Wd.canvas, cx, cy, VW, VH, 0, 0, VW, VH);
     Wd.drawDynamic(g, cx, cy, VW, VH, game.t, st);
 
+    drawDebris(cx, cy);
     // sombra + jogador + o que fica na frente dele
     if (px > -20 && py > -20 && px < VW + 20 && py < VH + 30) {
       g.fillStyle = 'rgba(0,0,0,0.45)';
@@ -693,6 +895,7 @@
       Wd.drawFront(g, cx, cy, Math.round(P.x), Math.round(P.y), game.t, st);
     }
 
+    drawFalling(cx, cy);
     // ---- mapa de luz ----
     lg.globalCompositeOperation = 'source-over'; lg.globalAlpha = 1;
     const a = o.amb || game.amb, pw = 0.35 + 0.65 * game.power;
@@ -710,6 +913,7 @@
     }
     // telas de fliperama sendo jogadas
     for (const c of Wd.cabinets) if (c.playT > 0) { lg.globalAlpha = 0.8; lg.drawImage(glow('#ffffff'), c.x + 8 - cx - 20, c.y + 10 - cy - 20, 40, 40); }
+    lightScares(cx, cy);
     let poly = null;
     const wox = hx + cx, woy = hy + cy;
     if (!o.cam) {
@@ -747,6 +951,7 @@
       g.globalAlpha = 0.9 * flashOn; g.fillStyle = '#fff6d8';
       g.fillRect(Math.round(hx + Math.cos(P.aim) * 3), Math.round(hy + Math.sin(P.aim) * 2), 1, 1);
     }
+    drawSparks(cx, cy);
     if (!o.cam) for (const m of motes) {
       const mx = m.x - cx, my = m.y - cy;
       let b = 0.05;
@@ -1294,10 +1499,10 @@
   //  FLIPERAMAS — puzzles jogáveis (sem recompensa)
   // =====================================================================
   const ARC_GAMES = ['luzes', 'deslize', 'memoria', 'torre', 'sequencia'];
-  const ARC_TITLE = { luzes: 'APAGUE AS LUZES', deslize: 'DESLIZE 8', memoria: 'MEMORIA', torre: 'TORRE', sequencia: 'SEQUENCIA' };
+  const ARC_TITLE = { luzes: 'APAGUE AS LUZES', deslize: 'DESLIZE 15', memoria: 'MEMORIA', torre: 'TORRE', sequencia: 'SEQUENCIA' };
   const ARC_HELP = {
-    luzes: 'APAGUE TODAS', deslize: 'ORDENE 1 A 8', memoria: 'ACHE OS PARES',
-    torre: 'LEVE TUDO PARA A DIREITA', sequencia: 'REPITA A SEQUENCIA',
+    luzes: 'APAGUE TODAS', deslize: 'ORDENE 1 A 15', memoria: 'ACHE OS PARES',
+    torre: 'TUDO PARA A DIREITA', sequencia: 'REPITA A SEQUENCIA',
   };
   const shade = (hex, k) => '#' + [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * k).toString(16).padStart(2, '0')).join('');
   const AF = { x: 40, y: 18, w: 304, h: 180 };
@@ -1310,39 +1515,39 @@
   function newArcade(kind, cab) {
     const ui = { type: 'arcade', kind, cab, t: 0, moves: 0, won: false, wonT: 0, cur: [0, 0], col: cab ? cab.c.scr : '#4aff8a' };
     if (kind === 'luzes') {
-      ui.n = 5; ui.cell = 20; ui.b = new Array(25).fill(0);
-      do { for (let i = 0; i < 12; i++) arcFlip(ui, (Math.random() * 25) | 0); } while (ui.b.every(v => !v));
-      ui.cur = [2, 2];
+      ui.n = 7; ui.cell = 16; ui.b = new Array(49).fill(0);
+      do { for (let i = 0; i < 40; i++) arcFlip(ui, (Math.random() * 49) | 0); } while (ui.b.filter(v => v).length < 12);
+      ui.cur = [3, 3];
     } else if (kind === 'deslize') {
-      ui.n = 3; ui.cell = 30; ui.b = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+      const n = 4; ui.n = n; ui.cell = 26; ui.b = []; for (let i = 1; i < n * n; i++) ui.b.push(i); ui.b.push(0);
       let last = -1;
-      for (let i = 0; i < 160 || arcSolved(ui); i++) {
-        const e = ui.b.indexOf(0), ex = e % 3, ey = (e / 3) | 0;
-        const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [ex + dx, ey + dy]).filter(([x, y]) => x >= 0 && y >= 0 && x < 3 && y < 3).map(([x, y]) => y * 3 + x).filter(j => j !== last);
+      for (let i = 0; i < 900 || arcSolved(ui); i++) {
+        const e = ui.b.indexOf(0), ex = e % n, ey = (e / n) | 0;
+        const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [ex + dx, ey + dy]).filter(([x, y]) => x >= 0 && y >= 0 && x < n && y < n).map(([x, y]) => y * n + x).filter(j => j !== last);
         const j = nb[(Math.random() * nb.length) | 0]; ui.b[e] = ui.b[j]; ui.b[j] = 0; last = e;
       }
       ui.cur = [1, 1];
     } else if (kind === 'memoria') {
-      ui.n = 4; ui.cell = 24;
-      const v = []; for (let i = 0; i < 8; i++) v.push(i, i);
+      ui.n = 6; ui.cell = 20;
+      const v = []; for (let i = 0; i < 18; i++) v.push(i, i);
       for (let i = v.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [v[i], v[j]] = [v[j], v[i]]; }
-      ui.b = v; ui.open = new Array(16).fill(0); ui.pick = []; ui.hideT = 0;
+      ui.b = v; ui.open = new Array(36).fill(0); ui.pick = []; ui.hideT = 0;
     } else if (kind === 'torre') {
-      ui.pegs = [[4, 3, 2, 1], [], []]; ui.held = -1; ui.cur = [0, 0];
+      ui.pegs = [[6, 5, 4, 3, 2, 1], [], []]; ui.held = -1; ui.cur = [0, 0];
     } else if (kind === 'sequencia') {
-      ui.seq = [(Math.random() * 4) | 0]; ui.step = 0; ui.show = 0.8; ui.lit = -1; ui.litT = 0; ui.goal = 6; ui.fail = 0; ui.play = 1;
+      ui.seq = [(Math.random() * 4) | 0]; ui.step = 0; ui.show = 0.8; ui.lit = -1; ui.litT = 0; ui.goal = 30; ui.fail = 0; ui.play = 1;
     }
     return ui;
   }
   function arcFlip(ui, i) {
-    const x = i % 5, y = (i / 5) | 0;
-    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < 5 && yy < 5) ui.b[yy * 5 + xx] ^= 1; }
+    const n = ui.n, x = i % n, y = (i / n) | 0;
+    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < n && yy < n) ui.b[yy * n + xx] ^= 1; }
   }
   function arcSolved(ui) {
     if (ui.kind === 'luzes') return ui.b.every(v => !v);
-    if (ui.kind === 'deslize') return ui.b.every((v, i) => v === (i + 1) % 9);
+    if (ui.kind === 'deslize') return ui.b.every((v, i) => v === (i + 1) % (ui.n * ui.n));
     if (ui.kind === 'memoria') return ui.open.every(v => v === 2);
-    if (ui.kind === 'torre') return ui.pegs[2].length === 4;
+    if (ui.kind === 'torre') return ui.pegs[2].length === 6;
     if (ui.kind === 'sequencia') return ui.seq.length > ui.goal;
     return false;
   }
@@ -1352,7 +1557,7 @@
   function arcPress(ui, i) {
     if (ui.kind === 'luzes') { arcFlip(ui, i); ui.moves++; Sfx.blip(1); }
     else if (ui.kind === 'deslize') {
-      const e = ui.b.indexOf(0), d = Math.abs(e % 3 - i % 3) + Math.abs(((e / 3) | 0) - ((i / 3) | 0));
+      const n = ui.n, e = ui.b.indexOf(0), d = Math.abs(e % n - i % n) + Math.abs(((e / n) | 0) - ((i / n) | 0));
       if (d === 1) { ui.b[e] = ui.b[i]; ui.b[i] = 0; ui.moves++; Sfx.tick(); } else Sfx.deny();
     } else if (ui.kind === 'memoria') {
       if (ui.hideT > 0 || ui.open[i]) return;
@@ -1396,7 +1601,7 @@
       if (ui.show > 0) { ui.show -= dt; if (ui.show <= 0) { ui.play = 0; ui.playT = 0.2; } }
       else if (ui.play < ui.seq.length) {
         ui.playT -= dt;
-        if (ui.playT <= 0) { const v = ui.seq[ui.play]; ui.lit = v; ui.litT = 0.4; Sfx.ding(v); ui.play++; ui.playT = 0.6; }
+        if (ui.playT <= 0) { const v = ui.seq[ui.play]; ui.play++; ui.playT = Math.max(0.28, 0.6 - ui.seq.length * 0.012); ui.lit = v; ui.litT = ui.playT * 0.7; Sfx.ding(v); }
         return;
       }
     }
@@ -1417,10 +1622,8 @@
       if (hit >= 0) { ui.kb = false; ui.cur = [hit % cols, (hit / cols) | 0]; arcPress(ui, hit); }
     }
   }
-  const MEM_SHAPES = [
-    ['#ff4a5a', 'sq'], ['#4aff8a', 'ci'], ['#4a9aff', 'tr'], ['#ffd24a', 'di'],
-    ['#ff7aff', 'sq'], ['#7affff', 'tr'], ['#ffffff', 'ci'], ['#ff9a3a', 'di'],
-  ];
+  const MEM_SHAPES = [];
+  ['#ff4a5a', '#4aff8a', '#4a9aff', '#ffd24a', '#ff7aff', '#ffffff'].forEach(c => ['sq', 'ci', 'tr', 'di'].slice(0, 3).forEach(k => MEM_SHAPES.push([c, k])));
   function shape(kind, cx, cy, r, col) {
     g.fillStyle = col;
     if (kind === 'sq') g.fillRect(cx - r, cy - r, r * 2, r * 2);
@@ -1457,7 +1660,7 @@
         } else {
           const o = ui.open[i];
           g.fillStyle = o ? '#141220' : '#2c2840'; g.fillRect(cx + 1, cy + 1, c - 2, c - 2);
-          if (o) { const [sc, sk] = MEM_SHAPES[ui.b[i]]; shape(sk, cx + c / 2, cy + c / 2, 6, o === 2 ? sc : shade(sc, 0.8)); }
+          if (o) { const [sc, sk] = MEM_SHAPES[ui.b[i]]; shape(sk, cx + c / 2, cy + c / 2, 5, o === 2 ? sc : shade(sc, 0.8)); }
           else { g.fillStyle = '#3c3858'; g.fillRect(cx + c / 2 - 1, cy + c / 2 - 1, 2, 2); }
         }
       }
@@ -1466,14 +1669,14 @@
         g.strokeRect(bx + ui.cur[0] * c + 0.5, by + ui.cur[1] * c + 0.5, c - 1, c - 1);
       }
     } else if (ui.kind === 'torre') {
-      const discC = ['#ff4a5a', '#ffd24a', '#4aff8a', '#4a9aff'];
+      const discC = ['#ff4a5a', '#ff9a3a', '#ffd24a', '#4aff8a', '#4a9aff', '#b07aff'];
       g.fillStyle = '#3a3346'; g.fillRect(70, TOWER_BASE, 244, 4);
       TOWER_X.forEach((px, i) => {
-        g.fillStyle = i === 2 ? shade(col, 0.6) : '#3a3346'; g.fillRect(px - 1, 76, 3, TOWER_BASE - 76);
+        g.fillStyle = i === 2 ? shade(col, 0.6) : '#3a3346'; g.fillRect(px - 1, 80, 3, TOWER_BASE - 80);
         ui.pegs[i].forEach((d, k) => {
-          const lift = ui.held === i && k === ui.pegs[i].length - 1 ? 64 - k * 12 + Math.sin(ui.t * 6) * 2 : 0;
-          const dw = 12 + d * 12, dy = TOWER_BASE - 11 - k * 12 - lift;
-          g.fillStyle = discC[d - 1]; g.fillRect(px - dw / 2, dy, dw, 10);
+          const up = ui.held === i && k === ui.pegs[i].length - 1;
+          const dw = 10 + d * 10, dy = up ? 66 + Math.round(Math.sin(ui.t * 6) * 2) : TOWER_BASE - 10 - k * 10;
+          g.fillStyle = discC[d - 1]; g.fillRect(px - dw / 2, dy, dw, 9);
           g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(px - dw / 2, dy, dw, 2);
         });
         if (ui.kb !== false && ui.cur[0] === i && tgl) { g.fillStyle = col; g.fillRect(px - 4, TOWER_BASE + 8, 9, 2); }
@@ -1487,7 +1690,7 @@
       });
       text(ui.fail > 0 ? 'ERROU!' : ui.show > 0 || ui.play < ui.seq.length ? 'OBSERVE' : 'SUA VEZ', GW / 2, 144, ui.fail > 0 ? '#ff5a4a' : '#c8c0d8', 'center');
       // progresso
-      for (let i = 0; i < ui.goal; i++) { g.fillStyle = i < ui.seq.length - 1 ? col : '#2a2636'; g.fillRect(GW / 2 - ui.goal * 5 + i * 10, 158, 8, 4); }
+      for (let i = 0; i < ui.goal; i++) { g.fillStyle = i < ui.seq.length - 1 ? col : '#2a2636'; g.fillRect(GW / 2 - ui.goal * 3 + i * 6, 158, 5, 4); }
     }
     g.restore();
     const footer = ui.kind === 'sequencia' ? `${ARC_HELP[ui.kind]}` : `${ARC_HELP[ui.kind]}   JOGADAS ${ui.moves}`;
@@ -1699,7 +1902,7 @@
   // atalho de depuração: ?play pula direto para o jogo
   if (/[?&]play\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startGame(); } }, 50);
-    window.__hawton = { P, game, cam, setPos: (x, y) => { P.x = x; P.y = y; cam.x = clamp(x - GW / 2, 0, MW - GW); cam.y = clamp(y - GH / 2, 0, MH - GH); } };
+    window.__hawton = { P, game, cam, doScare, scare, setPos: (x, y) => { P.x = x; P.y = y; cam.x = clamp(x - GW / 2, 0, MW - GW); cam.y = clamp(y - GH / 2, 0, MH - GH); } };
   }
   if (/[?&]cut\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startCutscene(); } }, 50);

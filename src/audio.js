@@ -345,9 +345,59 @@ window.Sfx = (() => {
     stopLoop('engine', 2.2);
   }
 
+
+  // ---- sustos ----
+  function pebbles() {
+    if (!ready) return;
+    for (let i = 0; i < 9; i++) setTimeout(() => burst('white', 'bandpass', 2500 + Math.random() * 2500, 6, 0.06 + Math.random() * 0.05, 0.001, 0.03, 0.6), i * 60 + Math.random() * 60);
+    burst('brown', 'lowpass', 160, 1, 0.25, 0.3, 0.8, 0.6);
+  }
+  function crash(big = 1) {
+    if (!ready) return;
+    const r = burst('brown', 'lowpass', 500, 0.8, 1.6 * big, 0.002, 1.2, 1.2);
+    if (r) { r.f.frequency.setValueAtTime(1400, r.t); r.f.frequency.exponentialRampToValueAtTime(90, r.t + 0.9); }
+    tone('sine', 70, 28, 0.6, 0.6 * big, 0.6);
+    for (let i = 0; i < 10; i++) setTimeout(() => burst('white', 'bandpass', 500 + Math.random() * 1600, 4, (0.25 + Math.random() * 0.25) * big, 0.001, 0.07 + Math.random() * 0.08, 0.8), 30 + i * (50 + Math.random() * 60));
+  }
+  function glass() {
+    if (!ready) return;
+    burst('white', 'highpass', 3500, 0.7, 0.9, 0.001, 0.35, 0.9);
+    burst('brown', 'lowpass', 400, 1, 0.5, 0.002, 0.25, 0.6);
+    for (let i = 0; i < 14; i++) tone('sine', 2500 + Math.random() * 4000, 2400 + Math.random() * 3000, 0.08 + Math.random() * 0.15, 0.03 + Math.random() * 0.04, 0.8, 0.03 + i * 0.04 + Math.random() * 0.05);
+  }
+  function rumble(sec = 2.5) {
+    if (!ready) return;
+    const r = burst('brown', 'lowpass', 140, 0.8, 1.1, sec * 0.4, sec * 0.6, 0.9, 0.7);
+    tone('sine', 45, 32, sec, 0.35, 0.5);
+    setTimeout(() => creak(), sec * 300);
+    return r;
+  }
+  function sting() {
+    if (!ready) return;
+    [[880, 840], [932, 990], [1244, 1180], [466, 440]].forEach(([a, b], i) => tone('sawtooth', a, b, 1.3, 0.05, 1.2, i * 0.01));
+    burst('white', 'bandpass', 3000, 3, 0.35, 0.005, 0.6, 1.0);
+    tone('sine', 60, 30, 0.8, 0.5, 0.6);
+  }
+  function slam() {
+    if (!ready) return;
+    burst('brown', 'lowpass', 260, 1, 1.8, 0.002, 0.5, 1.6);
+    burst('white', 'bandpass', 1400, 3, 0.35, 0.001, 0.08, 0.8);
+    tone('sine', 65, 35, 0.4, 0.5, 0.8);
+  }
+  function glitchCab() {
+    if (!ready) return;
+    const t = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'square';
+    for (let i = 0; i < 14; i++) o.frequency.setValueAtTime(200 + Math.random() * 1400, t + i * 0.08);
+    const g = ac.createGain(); o.connect(g); g.connect(master);
+    const w = ac.createGain(); w.gain.value = 0.9; g.connect(w); w.connect(verbIn);
+    env(g, t, 0.005, 0.09, 1.2); o.start(t); o.stop(t + 1.3);
+    burst('white', 'bandpass', 1800, 1, 0.3, 0.002, 1.1, 0.5);
+  }
+
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
   return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume,
     pull, engineStart, setEngine, clunk, powerUp, tick, ding, deny, lampOn, success,
-    doorOpen, doorClose, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
+    doorOpen, doorClose, pebbles, crash, glass, rumble, sting, slam, glitchCab, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
 })();

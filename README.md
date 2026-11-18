@@ -3,6 +3,10 @@
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
 Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
 
+## Sustos
+
+Enquanto a energia não volta, coisas acontecem a cada 14–26 segundos (o primeiro uns 15 s depois do início): tijolos e pedaços do teto despencam na frente do jogador e ficam no chão, uma lâmpada fluorescente cai e estoura com faíscas, uma porta aberta bate sozinha, um fliperama liga sozinho com som distorcido, a lanterna morre por alguns segundos, e o prédio treme soltando poeira. Quando a energia é ligada, os sustos param.
+
 ## Mapa
 
 O mapa jogável é feito em tiles (8px) e desenhado em pixel art pelo próprio código (`src/world.js`). Ele segue o layout da planta original, com paredes de verdade calculadas a partir das salas, portas, fliperamas e mobília com colisão.
@@ -10,7 +14,7 @@ O mapa jogável é feito em tiles (8px) e desenhado em pixel art pelo próprio c
 O mapa das câmeras e o mapa da tecla M (ou botão MAP) são esquemáticos, gerados a partir do mesmo layout: cada sala é uma caixa, os corredores são linhas e as saídas trancadas aparecem em vermelho. A planta original fica em `assets/map.jpg` só como referência.
 
 - **Portas:** E abre e fecha. Porta fechada bloqueia a passagem e a luz da lanterna. As passagens com neon ficam sempre abertas. As portas que dão para fora estão trancadas.
-- **Fliperamas:** mais de 80 máquinas com telas animadas quando há energia. E em frente a uma delas abre um puzzle (só por diversão, não dá recompensa): **Apague as Luzes**, **Deslize 8**, **Memória**, **Torre** (Hanói com 4 discos) e **Sequência** (repita 6 rodadas). Setas movem o cursor, E joga, Esc sai, e também dá para clicar ou tocar.
+- **Fliperamas:** mais de 80 máquinas com telas animadas quando há energia. E em frente a uma delas abre um puzzle (só por diversão, não dá recompensa): **Apague as Luzes** (7x7), **Deslize 15** (4x4), **Memória** (36 cartas), **Torre** (Hanói com 6 discos, mínimo de 63 jogadas) e **Sequência** (30 rodadas, cada vez mais rápida). Setas movem o cursor, E joga, Esc sai, e também dá para clicar ou tocar.
 
 ## Sala de segurança
 
