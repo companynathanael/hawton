@@ -3,6 +3,10 @@
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
 Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
 
+## Abertura
+
+Aviso (jump scares, inspiração no FNAF, fase PRE-DEMO) → menu (NOVO JOGO, PULAR HISTÓRIA, CRÉDITOS) → história da família Hawton em 8 quadros animados com música (`src/story.js`, `assets/story.mp3`) → chegada na fachada → "CREATED BY: Nazinho" → jogo. Cada quadro é pintado em alta resolução e convertido em pixel art com paleta própria e dithering. Na história, ENTER avança e ESC pula.
+
 ## Gráficos
 
 `src/gfx.js` refaz a iluminação do jogo 2D em WebGL: relevo por pixel (gerado da própria arte), brilho especular no piso, telas e neons emissivos, tone mapping de cinema e dithering em pixel art. As luzes respiram e os reflexos acompanham o jogador. Arcades e recepção usam o visual mais forte; cozinha e salões, mais suave. A tecla **G** alterna entre gráficos altos e simples, e `?lowgfx` desliga de vez.
