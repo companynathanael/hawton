@@ -995,14 +995,32 @@
     if (rm && rm.id !== vis.id) { vis.prev = vis.id; vis.id = rm.id; vis.t = vis.prev ? 0 : 1; }
     vis.t = Math.min(1, vis.t + dt / 0.25);
   }
+  // luzes da sala de segurança: abrem um pedaço do corredor do lado de fora
+  const SEC_PEEK = { W: { x: 68, y: 158, r: 64, clip: [56, 120, 32, 150] }, E: { x: 252, y: 96, r: 70, clip: [208, 32, 150, 96] } };
+  let visTmp = null;
   function roomMask(cx, cy) {
     if (!vis.id) return;
+    if (!visTmp) { visTmp = document.createElement('canvas'); visTmp.width = GW; visTmp.height = GH; }
+    const v = visTmp.getContext('2d');
+    v.globalCompositeOperation = 'source-over'; v.globalAlpha = 1; v.clearRect(0, 0, GW, GH);
     if (vis.prev && vis.t < 1) {
-      g.globalAlpha = 1 - vis.t; g.drawImage(getMask(vis.prev), cx, cy, GW, GH, 0, 0, GW, GH);
-      g.globalAlpha = vis.t;
+      v.globalAlpha = 1 - vis.t; v.drawImage(getMask(vis.prev), cx, cy, GW, GH, 0, 0, GW, GH);
+      v.globalAlpha = vis.t;
     }
-    g.drawImage(getMask(vis.id), cx, cy, GW, GH, 0, 0, GW, GH);
-    g.globalAlpha = 1;
+    v.drawImage(getMask(vis.id), cx, cy, GW, GH, 0, 0, GW, GH);
+    v.globalAlpha = 1;
+    if (vis.id === 'security' && game.powered) {
+      v.globalCompositeOperation = 'destination-out';
+      for (const k of ['W', 'E']) {
+        if (!sec.light[k]) continue;
+        const pk = SEC_PEEK[k], l = D.lights.find(l => l.g === 'sec' + k), a = l ? clamp(l.i, 0, 1) : 1;
+        v.save(); v.beginPath(); v.rect(pk.clip[0] - cx, pk.clip[1] - cy, pk.clip[2], pk.clip[3]); v.clip();
+        const gr = v.createRadialGradient(pk.x - cx, pk.y - cy, 6, pk.x - cx, pk.y - cy, pk.r);
+        gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(0.6, `rgba(0,0,0,${a * 0.85})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        v.fillStyle = gr; v.fillRect(0, 0, GW, GH); v.restore();
+      }
+    }
+    g.drawImage(visTmp, 0, 0);
   }
   function drawGame() {
     setRes(GW, GH);
@@ -1845,7 +1863,7 @@
     if (game.powered) {
       // renderiza a sala inteira numa área maior e reduz para a tela
       const vw = c.w || GW, vh = Math.round(vw * 9 / 16);
-      const cx = Math.round(clamp(c.x - vw / 2, 0, MW - vw)), cy = Math.round(clamp(c.y - vh / 2, 0, MH - vh));
+      const cx = Math.round(c.x - vw / 2), cy = Math.round(c.y - vh / 2);
       const rm = roomAt(c.x, c.y);
       const amb = rm ? [34 + rm.rgb[0] * rm.amb * 3, 28 + rm.rgb[1] * rm.amb * 3, 54 + rm.rgb[2] * rm.amb * 3] : game.amb;
       VW = vw; VH = vh; setRes(vw, vh);

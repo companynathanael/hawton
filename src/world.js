@@ -38,7 +38,7 @@ window.World = (() => {
     { id: 'basement', name: 'PORÃO', rects: [[110, 75, 140, 91]], floor: 'basement', wall: 'basement', amb: 0.04, tint: '#506070' },
     { id: 'secret', name: '???', rects: [[147, 75, 165, 91]], floor: 'white', wall: 'white', amb: 0.16, tint: '#c0e0ff' },
   ];
-  const VOIDS = [[49, 8, 68, 14], [12, 60, 36, 62], [97, 44, 108, 50]];
+  const VOIDS = [[49, 8, 68, 14], [12, 60, 36, 62]];
   // portas: retângulo de tiles na parede | type: door (normal), arch (passagem), security, exit (trancada)
   const DOORS = [
     { id: 'secW', r: [7, 15, 9, 15], type: 'security', name: 'PORTA OESTE' },
@@ -667,9 +667,6 @@ window.World = (() => {
       if (t === WALL) wallCap(x, y);
     }
     for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) if (face[ti(x, y)]) wallFace(ROOMS[troom[ti(x, y)]], x, y);
-    // detalhes do vazio do arcade 5 (escada para o fosso)
-    R(808, 360, 32, 40, '#0a0a10'); for (let j = 0; j < 36; j += 4) R(810, 362 + j, 28, 2, shade('#6a6e78', 1 - j / 50));
-    R(776, 352, 96, 1, '#ff4fd0'); R(776, 406, 96, 1, '#ff4fd0');
 
     // ===== mobília (camada própria, para desenhar na frente do jogador) =====
     cx = og;
@@ -1007,7 +1004,7 @@ window.World = (() => {
     { n: 8, name: 'PARTY HALL A', x: 1124, y: 100, w: 430 },
     { n: 9, name: 'PARTY HALL B', x: 1056, y: 404, w: 340 },
     { n: 10, name: 'CORREDOR C1', x: 330, y: 74, w: 384, ix: 450, iy: 50 },
-    { n: 11, name: 'CORREDOR C6', x: 200, y: 640, w: 400, ix: 72, iy: 400 },
+    { n: 11, name: 'PORTA C6', x: 72, y: 168, w: 220, ix: 72, iy: 200 },
     { n: 12, name: 'CORREDOR C5', x: 870, y: 524, w: 440, ix: 900, iy: 524 },
     { n: 13, name: 'POWER ROOMS', x: 1124, y: 240, w: 430 },
     { n: 14, name: 'PORÃO', x: 1000, y: 664, w: 300 },
