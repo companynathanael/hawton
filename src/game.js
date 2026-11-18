@@ -47,6 +47,9 @@
 
   // ---------- colisão (mapa em tiles: src/world.js) ----------
   const MW = D.width, MH = D.height;
+  // visão por sala (só no artifact de teste): window.HAWTON_VISION = true ou ?vis
+  const VISION = !!window.HAWTON_VISION || /[?&]vis\b/.test(location.search);
+  const camX = x => VISION ? x : clamp(x, 0, MW - GW), camY = y => VISION ? y : clamp(y, 0, MH - GH);
   const walkable = Wd.walkable;
   const boxFree = (x, y) => {
     for (let yy = y - 4; yy <= y; yy += 2)
@@ -452,7 +455,7 @@
     Sfx.interior();
     game.t = 0; game.fadeT = 0; game.hintT = 0;
     P.x = D.spawn[0]; P.y = D.spawn[1]; P.dir = 'up'; P.aim = -Math.PI / 2;
-    cam.x = P.x - GW / 2; cam.y = P.y - 8 - GH / 2 - 30; vis.id = vis.prev = null;
+    cam.x = camX(P.x - GW / 2); cam.y = camY(P.y - 8 - GH / 2 - 30); vis.id = vis.prev = null;
     game.room = null;
     motes.length = 0;
     for (let i = 0; i < 140; i++) motes.push({ x: cam.x + rnd(0, GW), y: cam.y + rnd(0, GH), vx: rnd(-3, 3), vy: rnd(-2, 2), ph: Math.random() * 6 });
@@ -578,7 +581,7 @@
       const tp = game.tp; tp.t += dt;
       if (tp.t > 0.7 && !tp.done) {
         tp.done = true; P.x = tp.to[0]; P.y = tp.to[1];
-        cam.x = P.x - GW / 2; cam.y = P.y - 8 - GH / 2; vis.id = vis.prev = null;
+        cam.x = camX(P.x - GW / 2); cam.y = camY(P.y - 8 - GH / 2); vis.id = vis.prev = null;
         motes.forEach(m => { m.x = cam.x + rnd(0, GW); m.y = cam.y + rnd(0, GH); });
         post.glitch = 1;
         if (tp.msg) showMsg(tp.msg);
@@ -588,7 +591,7 @@
 
     // câmera
     const lookX = sec.seated ? 0 : Math.cos(P.aim) * 16, lookY = sec.seated ? -10 : Math.sin(P.aim) * 12;
-    const tx = P.x + lookX - GW / 2, ty = P.y - 8 + lookY - GH / 2;
+    const tx = camX(P.x + lookX - GW / 2), ty = camY(P.y - 8 + lookY - GH / 2);
     const k = 1 - Math.exp(-dt * 4.5);
     cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
     cam.shake = Math.max(0, cam.shake - dt * 6);
@@ -1028,7 +1031,7 @@
     const sx = (Math.random() - 0.5) * cam.shake, sy = (Math.random() - 0.5) * cam.shake;
     const cx = Math.round(cam.x + sx), cy = Math.round(cam.y + sy);
     drawScene(cx, cy, { flash: !sec.seated || true });
-    roomMask(cx, cy);
+    if (VISION) roomMask(cx, cy);
 
     if (game.debug) {
       g.globalAlpha = 1;
@@ -1860,7 +1863,11 @@
   let camC = null;
   function drawCams() {
     const c = Wd.cameras[sec.cam];
-    if (game.powered) {
+    let c3 = null;
+    if (game.powered && window.Cam3D) { try { c3 = window.Cam3D.render(c.n, { powered: game.powered, t: game.t }); } catch (e) { console.warn(e); window.Cam3D = null; } }
+    if (game.powered && c3) {
+      g.imageSmoothingEnabled = false; g.drawImage(c3, 0, 0, GW, GH);
+    } else if (game.powered) {
       // renderiza a sala inteira numa área maior e reduz para a tela
       const vw = c.w || GW, vh = Math.round(vw * 9 / 16);
       const cx = Math.round(c.x - vw / 2), cy = Math.round(c.y - vh / 2);
@@ -1875,6 +1882,8 @@
       g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
       g.drawImage(camC, 0, 0, vw, vh, 0, 0, GW, GH);
       g.imageSmoothingEnabled = false;
+    }
+    if (game.powered) {
       // filtro de câmera de segurança
       g.globalCompositeOperation = 'saturation'; g.globalAlpha = 0.8; g.fillStyle = '#808080'; g.fillRect(0, 0, GW, GH);
       g.globalCompositeOperation = 'multiply'; g.globalAlpha = 1; g.fillStyle = '#c8f4d4'; g.fillRect(0, 0, GW, GH);
@@ -1957,7 +1966,7 @@
   // atalho de depuração: ?play pula direto para o jogo
   if (/[?&]play\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startGame(); } }, 50);
-    window.__hawton = { P, game, cam, doScare, scare, setPos: (x, y) => { P.x = x; P.y = y; cam.x = x - GW / 2; cam.y = y - 8 - GH / 2; } };
+    window.__hawton = { P, game, cam, doScare, scare, setPos: (x, y) => { P.x = x; P.y = y; cam.x = camX(x - GW / 2); cam.y = camY(y - 8 - GH / 2); } };
   }
   if (/[?&]cut\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startCutscene(); } }, 50);

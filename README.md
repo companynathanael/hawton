@@ -3,9 +3,13 @@
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
 Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
 
-## Visão por sala
+## Câmeras em 3D
 
-Só o cômodo onde o jogador está aparece; tudo fora das paredes dele fica preto (as câmeras continuam mostrando qualquer sala). A câmera segue o jogador sem parar na borda do mapa, então corredores ficam centralizados na tela. A troca de sala tem um fade rápido.
+As câmeras de segurança montam a sala de cada câmera em 3D (`src/cam3d.js`, com three.js em `src/vendor/`): chão e paredes com a arte do mapa, teto com fluorescentes, portas que abrem e fecham de verdade, fliperamas vistos de frente com a tela acesa e os outros móveis como blocos sólidos. As luzes seguem os circuitos de energia do jogo. Se o 3D não carregar, as câmeras voltam a ser 2D.
+
+## Visão por sala (opcional)
+
+Ligada só com `window.HAWTON_VISION = true` ou `?vis` na URL. Só o cômodo onde o jogador está aparece; tudo fora das paredes dele fica preto (as câmeras continuam mostrando qualquer sala). A câmera segue o jogador sem parar na borda do mapa, então corredores ficam centralizados na tela. A troca de sala tem um fade rápido.
 
 ## Sustos
 
