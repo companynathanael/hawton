@@ -582,6 +582,7 @@ window.Story = (() => {
     start(mode) { st.mode = mode; st.t = 0; st.i = 0; st.warnT = 0; st.creditsT = 0; if (mode === 'story') startMusic(); },
     // retorna: null (continua) | 'menu' | 'story' | 'skip' | 'credits' | 'done'
     update(dt, inp) {
+      if (st.mode === 'done') { st.mode = 'off'; fadeMusic(0.45, 1.5); return 'done'; }
       if (st.mode === 'warning') { st.warnT += dt; if (st.warnT > 0.8 && inp.any) { st.mode = 'menu'; return 'menu'; } }
       else if (st.mode === 'menu') {
         st.t += dt;
@@ -614,6 +615,7 @@ window.Story = (() => {
     credits() { st.mode = 'credits'; st.creditsT = 0; },
     stopMusic(sec = 2) { fadeMusic(0, sec); },
     // para testes: renderiza um quadro específico
+    debugJump(i, t) { st.mode = 'story'; st.i = i; st.t = t; },
     debugShot(i, t, g) { st.mode = 'story'; st.i = i; st.t = t; drawShot(g, 0); },
   };
 })();
