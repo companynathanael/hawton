@@ -2255,7 +2255,7 @@
   function frame(ts) {
     const dt = Math.min(0.05, (ts - last) / 1000); last = ts; now += dt;
     resize();
-    if (state === 'loading') { state = window.Story ? 'intro' : 'title'; if (window.Story) { const m = location.search.match(/[?&](story|menu)\b/); Story.start(m ? m[1] : 'warning'); if (m && m[1] === 'story') storyPlayed = true; } }
+    if (state === 'loading') { state = window.Story ? 'intro' : 'title'; if (window.Story) { const m = location.search.match(/[?&](story|menu|loading)\b/); Story.start(m ? m[1] : 'warning'); if (m && m[1] === 'story') storyPlayed = true; } }
     if ((state === 'intro' || state === 'credits') && window.Story) {
       if (img.facade && img.facade.complete) Story.setFacade(img.facade);
       setRes(CW, CH);
@@ -2266,7 +2266,8 @@
       };
       const r = fontReady ? Story.update(dt, inp) : null;
       if (r === 'story') { storyPlayed = true; try { Sfx.init(); Sfx.resume(); } catch (e) {} }
-      if (r === 'done' || r === 'skip') { try { Sfx.init(); Sfx.resume(); } catch (e) {} startCutscene(); }
+      if (r === 'done' || r === 'skip') { try { Sfx.init(); Sfx.resume(); } catch (e) {} Story.loading(); }
+      else if (r === 'loading-done') startCutscene();
       else if (r === 'credits-done') startGame();
       else { if (fontReady) Story.draw(g, dt); post.fade = 1; post.glitch = 0; post.flash = 0; }
     }

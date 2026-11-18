@@ -544,6 +544,127 @@ window.Story = (() => {
     vign(g);
   }
 
+  // ---------------- tela de carregamento ----------------
+  const TIPS = [
+    'Sem energia, a lanterna é sua melhor amiga.',
+    'A chave do corredor de serviço fica na recepção.',
+    'Portas de segurança fechadas gastam energia.',
+    'Câmera com estática? Aperte R para consertar.',
+    'Fios soltos na porta: ligue as cores iguais.',
+    'Os fliperamas ainda funcionam... alguns.',
+    'Se algo cair do teto, não fique parado.',
+  ];
+  const STEPS = ['Ligando os fliperamas', 'Varrendo os confetes', 'Contando os tickets', 'Testando os neons', 'Trancando as saídas', 'Acordando o Zippy'];
+  const loadShot = { colors: 22, accents: ['#ff4fd0', '#40e0ff', '#ffe060', '#7aff8a', '#ffffff', '#ff7a2a'], dither: 22 };
+  function drawLoading(g, t) {
+    const c = h;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.shadowBlur = 0;
+    // parede e piso
+    c.fillStyle = vgrad(c, 0, 230, ['#07040f', '#140a24', '#22103a']); c.fillRect(0, 0, W, H);
+    for (let x = 0; x < W; x += 40) { c.fillStyle = 'rgba(255,255,255,0.025)'; c.fillRect(x, 0, 20, 230); }
+    // piso xadrez em perspectiva
+    for (let r = 0; r < 12; r++) {
+      const y0 = 230 + r * r * 1.1 + r * 4, y1 = 230 + (r + 1) * (r + 1) * 1.1 + (r + 1) * 4;
+      for (let k = -12; k < 12; k++) {
+        const sx = x => 320 + (x - 320) * (1 + r * 0.25), sx1 = x => 320 + (x - 320) * (1 + (r + 1) * 0.25);
+        const xa = 320 + k * 28;
+        poly(c, [sx(xa), y0, sx(xa + 28), y0, sx1(xa + 28), y1, sx1(xa), y1], (k + r) % 2 ? '#1a1030' : '#2a1a46');
+      }
+    }
+    // reflexo do neon no chão
+    glow(c, 320, 250, 220, '#ff4fd0', 0.18);
+    // letreiro neon na parede
+    const fl = (Math.sin(t * 17) > -0.85 || t % 3 < 2.6) ? 1 : 0.25;
+    c.font = `22px ${FONT}`; c.textAlign = 'center';
+    c.shadowColor = '#ff4fd0'; c.shadowBlur = 18 * fl; c.fillStyle = fl > 0.5 ? '#ffc8f0' : '#5a1e4e'; c.fillText('HAWTON', 320, 52);
+    c.shadowColor = '#40e0ff'; c.shadowBlur = 14; c.font = `12px ${FONT}`; c.fillStyle = '#c8f8ff'; c.fillText('ARCADE', 320, 72);
+    c.shadowBlur = 0; c.textAlign = 'left';
+    c.strokeStyle = '#ff4fd0'; c.globalAlpha = 0.6 * fl; c.lineWidth = 2; c.strokeRect(196, 24, 248, 58); c.globalAlpha = 1;
+    // fileiras de fliperamas nos lados (silhuetas com telas)
+    const cab = (x, y, s, col, ph) => {
+      c.fillStyle = '#0c0816'; rr(c, x, y, 44 * s, 96 * s, 4 * s); c.fill();
+      c.fillStyle = col; c.fillRect(x + 4 * s, y + 6 * s, 36 * s, 10 * s);
+      const on = 0.6 + 0.4 * Math.sin(t * 3 + ph);
+      c.fillStyle = '#020306'; c.fillRect(x + 6 * s, y + 22 * s, 32 * s, 26 * s);
+      c.globalAlpha = on; c.fillStyle = col; c.fillRect(x + 8 * s, y + 24 * s, 28 * s, 22 * s); c.globalAlpha = 1;
+      glow(c, x + 22 * s, y + 35 * s, 40 * s, col, 0.25 * on);
+      c.fillStyle = '#1a1226'; c.fillRect(x + 4 * s, y + 52 * s, 36 * s, 10 * s);
+      ell(c, x + 14 * s, y + 57 * s, 2.5 * s, 2.5 * s, '#ff3a3a'); ell(c, x + 26 * s, y + 57 * s, 2.5 * s, 2.5 * s, '#3a8aff');
+      glow(c, x + 22 * s, y + 104 * s, 30 * s, col, 0.15 * on);
+    };
+    const cols = ['#40e0ff', '#ffe060', '#7aff8a', '#ff7a2a', '#ff4fd0'];
+    for (let i = 0; i < 4; i++) { cab(14 + i * 34, 128 - i * 8, 0.9 - i * 0.12, cols[i % 5], i); cab(560 - i * 34, 128 - i * 8, 0.9 - i * 0.12, cols[(i + 2) % 5], i + 3); }
+    // fliperama central com a animação de carregamento
+    const X = 250, Y = 96;
+    c.fillStyle = '#2a1640'; rr(c, X - 6, Y - 6, 152, 232, 10); c.fill();
+    c.fillStyle = '#3a1e5a'; rr(c, X, Y, 140, 224, 8); c.fill();
+    c.fillStyle = '#4a2a72'; c.fillRect(X, Y, 8, 224); c.fillStyle = '#24123a'; c.fillRect(X + 132, Y, 8, 224);
+    // letreiro do gabinete
+    c.fillStyle = '#ff4fd0'; c.fillRect(X + 12, Y + 8, 116, 22); c.fillStyle = '#ffd0f4'; c.fillRect(X + 16, Y + 12, 108, 3);
+    // tela
+    const SX = X + 16, SY = Y + 40, SW = 108, SH = 80;
+    c.fillStyle = '#05040a'; c.fillRect(SX - 4, SY - 4, SW + 8, SH + 8);
+    c.fillStyle = '#04120c'; c.fillRect(SX, SY, SW, SH);
+    // labirinto
+    c.fillStyle = '#2a4aff'; for (const [a, b, w2, h2] of [[0, 0, SW, 3], [0, SH - 3, SW, 3], [0, 0, 3, SH], [SW - 3, 0, 3, SH], [20, 18, 30, 3], [62, 18, 26, 3], [20, 58, 68, 3], [52, 30, 3, 18]]) c.fillRect(SX + a, SY + b, w2, h2);
+    // pontinhos sendo comidos
+    const px = (t * 34) % (SW + 20) - 10;
+    for (let x = 8; x < SW - 6; x += 8) if (x > px + 4) { c.fillStyle = '#ffe8b0'; c.fillRect(SX + x, SY + 40, 2, 2); }
+    // Greg correndo e o Zippy atrás
+    const run = Math.floor(t * 8) % 2;
+    const gx = SX + px, gy = SY + 34;
+    c.fillStyle = '#5a3418'; c.fillRect(gx, gy, 6, 3); c.fillStyle = '#e8b48c'; c.fillRect(gx + 1, gy + 3, 5, 3); c.fillStyle = '#c8302e'; c.fillRect(gx, gy + 6, 6, 5); c.fillStyle = '#2a3a6a'; c.fillRect(gx + run, gy + 11, 2, 3); c.fillRect(gx + 4 - run, gy + 11, 2, 3);
+    const zx = gx - 22 - Math.sin(t * 2) * 3;
+    if (zx > SX + 2) { c.fillStyle = '#a8937c'; c.fillRect(zx, gy + 1, 8, 7); c.fillRect(zx - 2, gy - 1, 3, 3); c.fillRect(zx + 7, gy - 1, 3, 3); c.fillStyle = '#7a3ab8'; c.fillRect(zx + 1, gy + 8, 6, 5); c.fillStyle = '#fff4c0'; c.fillRect(zx + 2, gy + 3, 1, 1); c.fillRect(zx + 5, gy + 3, 1, 1); c.fillStyle = '#1a1418'; c.fillRect(zx + 3, gy + 5, 2, 1); }
+    glow(c, SX + SW / 2, SY + SH / 2, 80, '#40e0ff', 0.25);
+    // controles e moedeiro
+    c.fillStyle = '#24123a'; poly(c, [X + 4, Y + 136, X + 136, Y + 136, X + 148, Y + 160, X - 8, Y + 160], '#24123a');
+    ell(c, X + 34, Y + 146, 6, 4, '#ff3a3a'); c.fillStyle = '#c8c8d0'; c.fillRect(X + 33, Y + 136, 2, 10);
+    for (let i = 0; i < 3; i++) ell(c, X + 76 + i * 16, Y + 148, 5, 3.5, ['#ffe060', '#3a8aff', '#7aff8a'][i]);
+    c.fillStyle = '#1a0e2a'; c.fillRect(X + 54, Y + 172, 32, 30); c.fillStyle = '#ffb030'; c.fillRect(X + 60, Y + 178, 20, 8); c.fillStyle = '#5a3a10'; c.fillRect(X + 68, Y + 179, 4, 6);
+    glow(c, X + 70, Y + 182, 26, '#ffb030', 0.35 + 0.2 * Math.sin(t * 5));
+    // fichas caindo no moedeiro
+    for (let i = 0; i < 3; i++) { const k = (t * 0.8 + i / 3) % 1; if (k < 0.6) { const yy = Y + 110 - 60 + k * 120; if (yy < Y + 176) { ell(c, X + 70 + Math.sin(k * 9) * 4, yy, 4 * Math.abs(Math.cos(t * 6 + i)) + 1, 4, '#ffd23a'); } } }
+    // confete e poeira
+    for (let i = 0; i < 60; i++) { const k = (t * 0.12 + i * 0.0731) % 1, x = (i * 71.3 + Math.sin(t + i) * 10) % W, y = k * H; c.fillStyle = cols[i % 5]; c.globalAlpha = 0.6; c.fillRect(x, y, 3, 2); }
+    c.globalAlpha = 1;
+    const v = c.createRadialGradient(320, 170, 150, 320, 170, 430); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.8)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
+    pixelize(loadShot, Math.min(1, t / 0.5, Math.max(0, (LOAD_T + 0.6 - t) / 0.6)));
+    g.imageSmoothingEnabled = false; g.drawImage(lo, 0, 0, W, H);
+    const a = Math.min(1, t / 0.5, Math.max(0, (LOAD_T + 0.6 - t) / 0.6));
+    g.globalAlpha = a;
+    text(g, 'LOADING', 320, 112, '#3a0a2a', 8, 'center', null);
+    const pg = g.createLinearGradient(0, 262, 0, 300); pg.addColorStop(0, 'rgba(5,3,10,0)'); pg.addColorStop(1, 'rgba(5,3,10,0.92)');
+    g.fillStyle = pg; g.fillRect(0, 262, W, 38); g.fillStyle = 'rgba(5,3,10,0.92)'; g.fillRect(0, 300, W, 60);
+    g.fillStyle = '#3a2a4e'; g.fillRect(0, 300, W, 1);
+    // progresso irregular (parece carregamento de verdade)
+    const k = clamp(t / LOAD_T, 0, 1), prog = Math.min(1, ease(k) + Math.sin(k * 23) * 0.015 * (1 - k)) * (k > 0.98 ? 1 : 0.99);
+    const pct = Math.floor(prog * 100);
+    // barra feita de fichas
+    const bx = 120, by = 312, bw = 400, n = 25;
+    g.fillStyle = '#000'; g.fillRect(bx - 4, by - 4, bw + 8, 22); g.fillStyle = '#3a2a4e'; g.fillRect(bx - 2, by - 2, bw + 4, 18); g.fillStyle = '#0c0816'; g.fillRect(bx, by, bw, 14);
+    for (let i = 0; i < n; i++) {
+      const on = i / n < prog, cx = bx + 4 + i * 16;
+      if (on) { g.fillStyle = ['#ff4fd0', '#ff7ad8', '#40e0ff', '#7aeaff'][(i >> 1) % 4]; g.fillRect(cx, by + 3, 12, 8); g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillRect(cx, by + 3, 12, 2); }
+      else { g.fillStyle = '#1a1226'; g.fillRect(cx, by + 3, 12, 8); }
+    }
+    // ficha girando na ponta
+    const fx = bx + 4 + Math.min(n - 1, Math.floor(prog * n)) * 16 + 6, sw = Math.abs(Math.cos(t * 6)) * 7 + 1;
+    g.fillStyle = '#000'; g.fillRect(fx - sw - 1, by - 12, sw * 2 + 2, 12); g.fillStyle = '#ffd23a'; g.fillRect(fx - sw, by - 11, sw * 2, 10); g.fillStyle = '#fff4b0'; g.fillRect(fx - sw, by - 11, sw, 2);
+    const step = STEPS[Math.min(STEPS.length - 1, Math.floor(prog * STEPS.length))];
+    text(g, 'CARREGANDO', bx, by - 26, '#ff8ae6', 8);
+    text(g, step + '.'.repeat(1 + Math.floor(t * 3) % 3), bx + 92, by - 26, '#b8acc8', 8);
+    text(g, pct + '%', bx + bw, by - 26, '#7aeaff', 8, 'right');
+    // dica
+    const ti = Math.floor(t / 2.6) % TIPS.length, tl = t % 2.6, ta = Math.min(1, tl / 0.3, (2.6 - tl) / 0.3);
+    g.globalAlpha = a * ta;
+    text(g, 'DICA', W / 2, by + 26, '#ffcf3a', 8, 'center');
+    text(g, TIPS[ti], W / 2, by + 38, '#d8ccb8', 8, 'center');
+    g.globalAlpha = 1;
+    if (prog >= 1) text(g, 'pronto', W - 16, 14, '#7aff8a', 8, 'right');
+  }
+  const LOAD_T = 6.5;
+
   // ---------------- cutscene ----------------
   const FADE = 0.6;
   function drawShot(g, dt) {
@@ -579,6 +700,7 @@ window.Story = (() => {
     setFacade(img) { facadeImg = img; },
     unlock() { try { if (!st.music) { st.music = new Audio('assets/story.mp3'); st.music.volume = 0.85; st.music.preload = 'auto'; } const p = st.music.play(); if (p && p.then) p.then(() => { if (st.mode !== 'story') st.music.pause(); }).catch(() => {}); else if (st.mode !== 'story') st.music.pause(); } catch (e) {} },
     get mode() { return st.mode; },
+    loading() { st.mode = 'loading'; st.t = 0; },
     start(mode) { st.mode = mode; st.t = 0; st.i = 0; st.warnT = 0; st.creditsT = 0; if (mode === 'story') startMusic(); },
     // retorna: null (continua) | 'menu' | 'story' | 'skip' | 'credits' | 'done'
     update(dt, inp) {
@@ -602,6 +724,7 @@ window.Story = (() => {
         else if (inp.ok && st.t > 0.8) { st.t = Math.max(st.t, SHOTS[st.i].dur - FADE); }
         if (st.mode === 'done') { fadeMusic(0.45, 1.5); return 'done'; }
       }
+      else if (st.mode === 'loading') { st.t += dt; if (st.t > LOAD_T + 0.6) { st.mode = 'off'; return 'loading-done'; } }
       else if (st.mode === 'credits') { st.creditsT += dt; if (st.creditsT > 4) { st.mode = 'off'; fadeMusic(0, 2.5); return 'credits-done'; } }
       return null;
     },
@@ -611,6 +734,7 @@ window.Story = (() => {
       else if (st.mode === 'credits-menu') drawCredits(g, Math.min(st.creditsT, 3.2));
       else if (st.mode === 'story') { drawShot(g, dt); if (st.mode === 'done') { fadeMusic(0.45, 1.5); } }
       else if (st.mode === 'credits') drawCredits(g, st.creditsT);
+      else if (st.mode === 'loading') drawLoading(g, st.t);
     },
     credits() { st.mode = 'credits'; st.creditsT = 0; },
     stopMusic(sec = 2) { fadeMusic(0, sec); },

@@ -5,7 +5,7 @@ Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com 
 
 ## Abertura
 
-Aviso (jump scares, inspiração no FNAF, fase PRE-DEMO) → menu (NOVO JOGO, PULAR HISTÓRIA, CRÉDITOS) → história da família Hawton em 8 quadros animados com música (`src/story.js`, `assets/story.mp3`) → chegada na fachada → "CREATED BY: Nazinho" → jogo. Cada quadro é pintado em alta resolução e convertido em pixel art com paleta própria e dithering. Na história, ENTER avança e ESC pula.
+Aviso (jump scares, inspiração no FNAF, fase PRE-DEMO) → menu (NOVO JOGO, PULAR HISTÓRIA, CRÉDITOS) → história da família Hawton em 8 quadros animados com música (`src/story.js`, `assets/story.mp3`) → tela de carregamento → chegada na fachada → "CREATED BY: Nazinho" → jogo. Cada quadro é pintado em alta resolução e convertido em pixel art com paleta própria e dithering. Na história, ENTER avança e ESC pula.
 
 ## Gráficos
 
