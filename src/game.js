@@ -452,7 +452,7 @@
     Sfx.interior();
     game.t = 0; game.fadeT = 0; game.hintT = 0;
     P.x = D.spawn[0]; P.y = D.spawn[1]; P.dir = 'up'; P.aim = -Math.PI / 2;
-    cam.x = clamp(P.x - GW / 2, 0, MW - GW); cam.y = clamp(P.y - GH / 2 - 30, 0, MH - GH);
+    cam.x = P.x - GW / 2; cam.y = P.y - 8 - GH / 2 - 30; vis.id = vis.prev = null;
     game.room = null;
     motes.length = 0;
     for (let i = 0; i < 140; i++) motes.push({ x: cam.x + rnd(0, GW), y: cam.y + rnd(0, GH), vx: rnd(-3, 3), vy: rnd(-2, 2), ph: Math.random() * 6 });
@@ -578,7 +578,7 @@
       const tp = game.tp; tp.t += dt;
       if (tp.t > 0.7 && !tp.done) {
         tp.done = true; P.x = tp.to[0]; P.y = tp.to[1];
-        cam.x = clamp(P.x - GW / 2, 0, MW - GW); cam.y = clamp(P.y - GH / 2, 0, MH - GH);
+        cam.x = P.x - GW / 2; cam.y = P.y - 8 - GH / 2; vis.id = vis.prev = null;
         motes.forEach(m => { m.x = cam.x + rnd(0, GW); m.y = cam.y + rnd(0, GH); });
         post.glitch = 1;
         if (tp.msg) showMsg(tp.msg);
@@ -588,7 +588,7 @@
 
     // câmera
     const lookX = sec.seated ? 0 : Math.cos(P.aim) * 16, lookY = sec.seated ? -10 : Math.sin(P.aim) * 12;
-    const tx = clamp(P.x + lookX - GW / 2, 0, MW - GW), ty = clamp(P.y - 8 + lookY - GH / 2, 0, MH - GH);
+    const tx = P.x + lookX - GW / 2, ty = P.y - 8 + lookY - GH / 2;
     const k = 1 - Math.exp(-dt * 4.5);
     cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
     cam.shake = Math.max(0, cam.shake - dt * 6);
@@ -651,6 +651,7 @@
       if (m.y < cam.y - 10) m.y += GH + 20; if (m.y > cam.y + GH + 10) m.y -= GH + 20;
     }
     updateScares(dt);
+    updateVision(dt);
     for (let i = puffs.length - 1; i >= 0; i--) {
       const p = puffs[i]; p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.life <= 0) puffs.splice(i, 1);
@@ -968,12 +969,48 @@
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   }
 
+  // =====================================================================
+  //  VISÃO POR SALA — só o cômodo atual aparece; o resto fica preto
+  // =====================================================================
+  const maskCache = {};
+  const vis = { id: null, prev: null, t: 1 };
+  function getMask(id) {
+    let m = maskCache[id];
+    if (m) return m;
+    m = document.createElement('canvas'); m.width = MW; m.height = MH;
+    const c = m.getContext('2d');
+    c.fillStyle = '#030208'; c.fillRect(0, 0, MW, MH);
+    c.globalCompositeOperation = 'destination-out';
+    const def = Wd.ROOMS.find(r => r.id === id);
+    for (const [x0, y0, x1, y1] of def.rects) c.fillRect((x0 - 1) * 8, (y0 - 1) * 8, (x1 - x0 + 3) * 8, (y1 - y0 + 3) * 8);
+    // portas do cômodo
+    for (const d of Wd.DOORS) {
+      const [a, b, e, f] = d.r;
+      if (def.rects.some(([x0, y0, x1, y1]) => a >= x0 - 1 && e <= x1 + 1 && b >= y0 - 1 && f <= y1 + 1)) c.fillRect(a * 8 - 2, b * 8 - 8, (e - a + 1) * 8 + 4, (f - b + 1) * 8 + 10);
+    }
+    return (maskCache[id] = m);
+  }
+  function updateVision(dt) {
+    const rm = roomAt(P.x, P.y - 4);
+    if (rm && rm.id !== vis.id) { vis.prev = vis.id; vis.id = rm.id; vis.t = vis.prev ? 0 : 1; }
+    vis.t = Math.min(1, vis.t + dt / 0.25);
+  }
+  function roomMask(cx, cy) {
+    if (!vis.id) return;
+    if (vis.prev && vis.t < 1) {
+      g.globalAlpha = 1 - vis.t; g.drawImage(getMask(vis.prev), cx, cy, GW, GH, 0, 0, GW, GH);
+      g.globalAlpha = vis.t;
+    }
+    g.drawImage(getMask(vis.id), cx, cy, GW, GH, 0, 0, GW, GH);
+    g.globalAlpha = 1;
+  }
   function drawGame() {
     setRes(GW, GH);
     if (sec.seated && sec.cams) { drawCams(); return; }
     const sx = (Math.random() - 0.5) * cam.shake, sy = (Math.random() - 0.5) * cam.shake;
     const cx = Math.round(cam.x + sx), cy = Math.round(cam.y + sy);
     drawScene(cx, cy, { flash: !sec.seated || true });
+    roomMask(cx, cy);
 
     if (game.debug) {
       g.globalAlpha = 1;
@@ -1902,7 +1939,7 @@
   // atalho de depuração: ?play pula direto para o jogo
   if (/[?&]play\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startGame(); } }, 50);
-    window.__hawton = { P, game, cam, doScare, scare, setPos: (x, y) => { P.x = x; P.y = y; cam.x = clamp(x - GW / 2, 0, MW - GW); cam.y = clamp(y - GH / 2, 0, MH - GH); } };
+    window.__hawton = { P, game, cam, doScare, scare, setPos: (x, y) => { P.x = x; P.y = y; cam.x = x - GW / 2; cam.y = y - 8 - GH / 2; } };
   }
   if (/[?&]cut\b/.test(location.search)) {
     const iv = setInterval(() => { if (loaded === toLoad.length) { clearInterval(iv); try { Sfx.init(); } catch (e) {} startCutscene(); } }, 50);

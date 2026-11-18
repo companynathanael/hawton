@@ -3,6 +3,10 @@
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
 Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
 
+## Visão por sala
+
+Só o cômodo onde o jogador está aparece; tudo fora das paredes dele fica preto (as câmeras continuam mostrando qualquer sala). A câmera segue o jogador sem parar na borda do mapa, então corredores ficam centralizados na tela. A troca de sala tem um fade rápido.
+
 ## Sustos
 
 Enquanto a energia não volta, coisas acontecem a cada 14–26 segundos (o primeiro uns 15 s depois do início): tijolos e pedaços do teto despencam na frente do jogador e ficam no chão, uma lâmpada fluorescente cai e estoura com faíscas, uma porta aberta bate sozinha, um fliperama liga sozinho com som distorcido, a lanterna morre por alguns segundos, e o prédio treme soltando poeira. Quando a energia é ligada, os sustos param.
