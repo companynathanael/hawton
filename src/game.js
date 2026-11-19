@@ -2203,6 +2203,7 @@
     R(2, 16, 2, 2, '#1a1418'); R(22, 16, 2, 2, '#1a1418');
   });
 
+  window.AnimArt = { spr: ASPR, piano: PIANO_SPR, face: id => faceCanvas(id) };
   // ---------- rosto grande do jumpscare (pintado e pixelizado) ----------
   const faceCache = {};
   function faceCanvas(id) {
@@ -2858,10 +2859,11 @@
       };
       const r = fontReady ? Story.update(dt, inp) : null;
       if (r === 'story') { storyPlayed = true; try { Sfx.init(); Sfx.resume(); } catch (e) {} }
-      if (r === 'done' || r === 'skip') { try { Sfx.init(); Sfx.resume(); } catch (e) {} Story.loading(); }
-      else if (r === 'loading-done') startCutscene();
-      else if (r === 'credits-done') startGame();
-      else { if (fontReady) Story.draw(g, dt); post.fade = 1; post.glitch = 0; post.flash = 0; }
+      if (r === 'done') { state = 'credits'; Story.credits(); }
+      else if (r === 'skip') { try { Sfx.init(); Sfx.resume(); } catch (e) {} Story.loading(); }
+      else if (r === 'loading-done') { Story.stopMusic(2.5); startGame(); }
+      else if (r === 'credits-done') { state = 'intro'; Story.loading(); }
+      else { if (fontReady) Story.draw(g, dt); post.fade = 1; post.glitch = Story.glitch * 0.8; post.flash = 0; }
     }
     if (state === 'title') { drawTitle(now); post.fade = 1; post.glitch = Math.random() < 0.02 ? 0.5 : 0; post.flash = 0; }
     else if (state === 'cutscene') { anyInput(); drawCutscene(dt); }

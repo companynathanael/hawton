@@ -461,9 +461,23 @@ window.Sfx = (() => {
   }
   function chime() { if (!ready) return; [0, 4, 7, 12, 7, 12, 16].forEach((st, i) => tone('triangle', 523 * Math.pow(2, st / 12), 523 * Math.pow(2, st / 12), 0.6, 0.16, 1.0, i * 0.28)); }
 
+
+  // ---- cutscene ----
+  function staticBurst(d = 0.35, v = 1) { if (!ready) return; burst('white', 'bandpass', 2400, 0.4, 0.5 * v, 0.004, d, 0.2); burst('white', 'highpass', 6000, 0.7, 0.25 * v, 0.002, d * 0.8, 0.1); }
+  function tape() { if (!ready) return; burst('brown', 'lowpass', 300, 1, 0.9, 0.002, 0.15, 0.3); setTimeout(() => burst('white', 'highpass', 5000, 0.7, 0.12, 0.05, 1.2, 0.1), 120); tone('square', 60, 58, 0.12, 0.08, 0.2, 0.05); }
+  function crowd(sec = 3, v = 1) {
+    if (!ready) return;
+    const r = burst('pink', 'bandpass', 1100, 0.8, 0.5 * v, 0.4, sec, 0.8);
+    for (let i = 0; i < 26; i++) setTimeout(() => burst('white', 'bandpass', 1800 + Math.random() * 1500, 3, (0.1 + Math.random() * 0.12) * v, 0.001, 0.04, 0.5), Math.random() * sec * 900);
+    for (let i = 0; i < 6; i++) { const f = 500 + Math.random() * 500; tone('sawtooth', f, f * 1.4, 0.5, 0.03 * v, 1.2, Math.random() * sec * 0.8); }
+  }
+  function rustle() { if (!ready) return; for (let i = 0; i < 5; i++) setTimeout(() => burst('white', 'highpass', 2500 + Math.random() * 2000, 1, 0.12, 0.01, 0.12, 0.3), i * 70); }
+  function typeTick() { if (!ready) return; burst('white', 'bandpass', 2600 + Math.random() * 800, 4, 0.07, 0.001, 0.03, 0.05); }
+  function swell(sec = 3) { if (!ready) return; tone('sawtooth', 55, 110, sec, 0.06, 1.2); tone('sine', 82, 164, sec, 0.08, 1.2); burst('pink', 'lowpass', 400, 1, 0.35, sec * 0.9, 0.4, 1.0); }
+
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
   return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume,
     pull, engineStart, setEngine, clunk, powerUp, tick, ding, deny, lampOn, success,
-    doorOpen, doorClose, mstep, scream, honk, laugh, drum, croak, squeak, snip, bang, fall, piano, chime, pebbles, crash, glass, rumble, sting, slam, glitchCab, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
+    doorOpen, doorClose, staticBurst, tape, crowd, rustle, typeTick, swell, mstep, scream, honk, laugh, drum, croak, squeak, snip, bang, fall, piano, chime, pebbles, crash, glass, rumble, sting, slam, glitchCab, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
 })();

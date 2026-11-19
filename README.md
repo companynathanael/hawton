@@ -22,7 +22,9 @@ Portas de segurança fechadas seguram todos; portas comuns eles abrem depois de 
 
 ## Abertura
 
-Aviso (jump scares, inspiração no FNAF, fase PRE-DEMO) → menu (NOVO JOGO, PULAR HISTÓRIA, CRÉDITOS) → história da família Hawton em 8 quadros animados com música (`src/story.js`, `assets/story.mp3`) → tela de carregamento → chegada na fachada → "CREATED BY: Nazinho" → jogo. Cada quadro é pintado em alta resolução e convertido em pixel art com paleta própria e dithering. Na história, ENTER avança e ESC pula.
+Aviso → menu (NOVO JOGO, PULAR HISTÓRIA, CRÉDITOS) → história em 11 quadros de pixel art 2D animados (`src/story.js`) com música (`assets/story.mp3`) e efeitos sonoros → "CREATED BY: Nazinho" → tela de carregamento → jogo.
+
+Quadros: Califórnia 1986, a oficina do Joe e o show de inauguração (os três como fita VHS antiga, com PLAY, data e tracking), o jornal de 1993 sobre o fechamento, o Greg no celular, o Joe na porta, a fuga pela janela, a rua, a fachada abandonada com o letreiro falhando, os olhos acendendo no escuro e o título. Entre os quadros há estática de TV; o texto aparece com som de máquina de escrever. ENTER avança, ESC pula.
 
 ## Gráficos
 

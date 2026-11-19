@@ -53,10 +53,11 @@ window.Story = (() => {
     l.clearRect(0, 0, PW, PH); l.drawImage(hi, 0, 0, PW, PH);
     const id = l.getImageData(0, 0, PW, PH), d = id.data;
     if (!shot.pal) {
-      const base = medianCut(d, shot.colors || 22).concat((shot.accents || []).map(hex), [[0, 0, 0], [8, 6, 14]]);
+      const base = medianCut(d, shot.colors || 20).concat((shot.accents || []).map(hex), [[0, 0, 0], [8, 6, 14]]);
       shot.pal = base; shot.lut = makeLUT(base);
     }
-    const pal = shot.pal, lut = shot.lut, sp = shot.dither ?? 26;
+    const pal = shot.pal, lut = shot.lut, sp = shot.dither ?? 20;
+    if (shot.vhs) for (let i = 0; i < d.length; i += 4) { const lu = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11; d[i] = d[i] * 0.6 + lu * 0.52; d[i + 1] = d[i + 1] * 0.6 + lu * 0.42; d[i + 2] = d[i + 2] * 0.6 + lu * 0.28; }
     for (let y = 0, i = 0; y < PH; y++) for (let x = 0; x < PW; x++, i += 4) {
       const t = ((BAY[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5) * sp;
       const r = clamp(d[i] * fade + t, 0, 255) >> 3, g = clamp(d[i + 1] * fade + t, 0, 255) >> 3, b = clamp(d[i + 2] * fade + t, 0, 255) >> 3;
@@ -64,6 +65,10 @@ window.Story = (() => {
       d[i] = p[0]; d[i + 1] = p[1]; d[i + 2] = p[2]; d[i + 3] = 255;
     }
     l.putImageData(id, 0, 0);
+    if (shot.vhs) { // faixa de tracking da fita
+      const by = Math.floor((performance.now() / 18) % (PH + 30)) - 15;
+      for (let y = by; y < by + 6; y++) if (y >= 0 && y < PH) { const row = l.getImageData(0, y, PW, 1); l.putImageData(row, Math.round((Math.random() - 0.5) * 6), y); l.fillStyle = 'rgba(255,255,255,0.12)'; l.fillRect(0, y, PW, 1); }
+    }
   }
 
   // ---------------- personagens ----------------
@@ -178,7 +183,7 @@ window.Story = (() => {
   // ---------------- quadros ----------------
   const SHOTS = [
     { // 1. Califórnia, 1986
-      dur: 9, tag: 'CALIFORNIA, 1986', text: 'Greg Hawton nasceu na Califórnia.', accents: ['#ffe890', '#ff8a5a'],
+      dur: 9, tag: 'CALIFORNIA, 1986', vhs: '11/03/1986', cues: [[0.1, () => Sfx.tape()]], text: 'Greg Hawton nasceu na Califórnia.', accents: ['#ffe890', '#ff8a5a'],
       draw(c, t) {
         const p = ease(t / 9), pan = -20 * p;
         c.fillStyle = vgrad(c, 0, H, ['#2a1650', '#7a2a6a', '#e0605a', '#ffa860', '#ffd98a']); c.fillRect(0, 0, W, H);
@@ -209,7 +214,7 @@ window.Story = (() => {
       },
     },
     { // 2. Joe, o engenheiro
-      dur: 9, tag: 'ANOS 80', text: 'Filho de Joe Hawton, um dos maiores engenheiros dos Estados Unidos.', accents: ['#ffe38a', '#ff9a3a', '#7ad8ff'], dither: 22,
+      dur: 9, tag: 'ANOS 80', vhs: '02/09/1987', cues: [[0.3, () => Sfx.zap()], [3, () => Sfx.zap()], [6, () => Sfx.zap()]], text: 'Filho de Joe Hawton, um dos maiores engenheiros dos Estados Unidos.', accents: ['#ffe38a', '#ff9a3a', '#7ad8ff'], dither: 22,
       draw(c, t) {
         c.fillStyle = '#0a0812'; c.fillRect(0, 0, W, H);
         const fl = 0.85 + 0.15 * Math.sin(t * 13) * Math.sin(t * 7.3);
@@ -250,64 +255,88 @@ window.Story = (() => {
         const v = c.createRadialGradient(360, 180, 120, 360, 180, 420); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.8)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
       },
     },
-    { // 3. Inauguração
-      dur: 9, tag: '1989', text: 'Nos anos 80, Joe fundou a Hawton Arcade.', accents: ['#ff4fd0', '#40e0ff', '#ffe060', '#ffffff'], colors: 24,
+    { // 3. Inauguração: o show no palco
+      dur: 10, tag: '', vhs: '04/22/1989', text: 'Nos anos 80, Joe fundou a Hawton Arcade. As crianças amavam o show.', accents: ['#ff4fd0', '#ffe060', '#ffffff', '#e8c040'], colors: 22,
+      cues: [[0.2, () => Sfx.crowd(4, 0.9)], [5, () => Sfx.crowd(3, 0.7)]],
       draw(c, t) {
-        c.fillStyle = vgrad(c, 0, H, ['#120626', '#3a0e4a', '#a01e5a', '#ff5a3a']); c.fillRect(0, 0, W, H);
-        // holofotes cruzando o céu
-        for (const [x, a0] of [[120, -0.4], [520, 0.4], [320, 0]]) {
-          const a = a0 + Math.sin(t * 0.9 + x) * 0.35;
-          c.save(); c.translate(x, 300); c.rotate(a); const g = c.createLinearGradient(0, 0, 0, -380); g.addColorStop(0, 'rgba(255,230,255,0.35)'); g.addColorStop(1, 'rgba(255,230,255,0)');
-          c.fillStyle = g; c.beginPath(); c.moveTo(-8, 0); c.lineTo(8, 0); c.lineTo(60, -400); c.lineTo(-60, -400); c.fill(); c.restore();
+        const art = window.AnimArt;
+        // cortinas vermelhas com dobras
+        c.fillStyle = '#2a0610'; c.fillRect(0, 0, W, H);
+        for (let x = 0; x < W; x += 24) { const g = c.createLinearGradient(x, 0, x + 24, 0); g.addColorStop(0, '#5a0e1e'); g.addColorStop(0.5, '#a8203a'); g.addColorStop(1, '#4a0a18'); c.fillStyle = g; c.fillRect(x, 0, 24, 250); }
+        for (let x = 0; x < W; x += 48) poly(c, [x, 0, x + 48, 0, x + 24, 30 + Math.sin(x) * 4], '#7a1428');
+        c.fillStyle = '#d8a830'; c.fillRect(0, 26, W, 4);
+        // letreiro sobre o palco
+        const on = Math.sin(t * 9) > -0.8;
+        c.fillStyle = '#12040c'; rr(c, 170, 38, 300, 46, 8); c.fill(); c.strokeStyle = '#ff4fd0'; c.lineWidth = 2; rr(c, 172, 40, 296, 42, 7); c.stroke();
+        c.font = `20px ${FONT}`; c.textAlign = 'center'; c.shadowColor = '#ff4fd0'; c.shadowBlur = on ? 16 : 2; c.fillStyle = on ? '#ffd0f4' : '#7a2a6a'; c.fillText('HAWTON SHOW', 320, 64); c.shadowBlur = 0; c.textAlign = 'left';
+        for (let i = 0; i < 20; i++) ell(c, 120 + i * 21, 76, 3, 3, (Math.floor(t * 6) + i) % 2 ? '#ffe060' : '#6a4a10');
+        // palco
+        c.fillStyle = '#6a3a1a'; c.fillRect(40, 236, 560, 20); for (let x = 40; x < 600; x += 16) c.fillRect(x, 236, 1, 20);
+        c.fillStyle = '#8a5428'; c.fillRect(40, 232, 560, 5); c.fillStyle = '#3a1e0c'; c.fillRect(40, 256, 560, 6);
+        // holofotes
+        for (const [x, col] of [[200, '#ffe8a0'], [320, '#ffd0f4'], [440, '#a0e8ff']]) {
+          const sw = Math.sin(t * 1.3 + x) * 20;
+          c.save(); c.globalAlpha = 0.22; c.fillStyle = col; c.beginPath(); c.moveTo(x - 6 + sw * 0.2, 0); c.lineTo(x + 6 + sw * 0.2, 0); c.lineTo(x + 50 + sw, 236); c.lineTo(x - 50 + sw, 236); c.fill(); c.restore();
+          glow(c, x + sw, 232, 60, col, 0.4);
         }
-        // prédio
-        c.fillStyle = '#2a1238'; c.fillRect(70, 150, 500, 160); c.fillStyle = '#3a1a4a'; for (let y = 156; y < 310; y += 12) c.fillRect(70, y, 500, 2);
-        c.fillStyle = '#1a0a24'; c.fillRect(60, 142, 520, 12);
-        // letreiro neon
-        const on = Math.sin(t * 9) > -0.9;
-        c.fillStyle = '#12061a'; c.fillRect(120, 60, 400, 70); c.strokeStyle = '#ff4fd0'; c.lineWidth = 3; c.strokeRect(124, 64, 392, 62);
-        c.font = `30px ${FONT}`; c.textAlign = 'center';
-        c.shadowColor = '#ff4fd0'; c.shadowBlur = on ? 22 : 4; c.fillStyle = on ? '#ffd0f4' : '#7a2a6a'; c.fillText('HAWTON', 320, 100);
-        c.shadowColor = '#40e0ff'; c.font = `16px ${FONT}`; c.fillStyle = '#d0f8ff'; c.fillText('ARCADE', 320, 122); c.shadowBlur = 0; c.textAlign = 'left';
-        for (let i = 0; i < 18; i++) { const on2 = (Math.floor(t * 8) + i) % 3 === 0; ell(c, 130 + i * 22, 136, 4, 4, on2 ? '#ffe060' : '#6a5020'); }
-        // vitrines e porta aberta com luz
-        for (const x of [100, 190, 420, 510]) { c.fillStyle = '#ffe8ff'; c.fillRect(x, 190, 70, 60); c.fillStyle = '#ff4fd0'; c.fillRect(x + 6, 200, 16, 44); c.fillStyle = '#40e0ff'; c.fillRect(x + 27, 200, 16, 44); c.fillStyle = '#ffe060'; c.fillRect(x + 48, 200, 16, 44); }
-        c.fillStyle = '#fff4d0'; c.fillRect(280, 196, 80, 114); glow(c, 320, 260, 140, '#fff0c0', 0.5);
-        // fita de inauguração
-        c.fillStyle = '#e0202a'; c.fillRect(270, 262 + Math.sin(t * 2) * 2, 100, 8); ell(c, 320, 266, 10, 8, '#ff3a3a');
-        // Joe cortando a fita
-        figure(c, JOE_Y, 352, 318, 92, 'scissors', { x: 320, y: 240, col: '#fff0c0', rim: '#fff4d0', amt: 0.25, dark: 0.5 });
-        // multidão em silhueta
-        for (let i = 0; i < 22; i++) {
-          const x = i * 30 - 10, bob = Math.abs(Math.sin(t * 5 + i * 1.7)) * 6, hh = 70 + (i % 4) * 8;
-          ell(c, x, 360 - hh - bob, 11, 13, '#12061a'); c.fillStyle = '#12061a'; rr(c, x - 16, 360 - hh + 10 - bob, 32, hh, 10); c.fill();
-          if (i % 3 === 0) { c.save(); c.translate(x + 10, 360 - hh + 14 - bob); c.rotate(-2.6 + Math.sin(t * 6 + i) * 0.3); c.fillStyle = '#12061a'; rr(c, -4, 0, 8, 34, 4); c.fill(); c.restore(); }
+        // a banda (sprites do jogo, ampliados)
+        if (art) {
+          const S = 4, bob = k => Math.round(Math.abs(Math.sin(t * 4 + k)) * 4);
+          const put = (img, x, y, k) => { c.imageSmoothingEnabled = false; c.drawImage(img, x - img.width * S / 2, y - img.height * S - bob(k), img.width * S, img.height * S); };
+          c.imageSmoothingEnabled = false; c.drawImage(art.piano, 140, 236 - 18 * 3, 26 * 3, 18 * 3);
+          put(art.spr.hootsy[Math.floor(t * 3) % 2], 210, 236, 0);
+          put(art.spr.raft[Math.floor(t * 4) % 2], 320, 236, 1);
+          put(art.spr.jester[Math.floor(t * 5) % 2], 430, 236, 2);
+          put(art.spr.bongo[Math.floor(t * 6) % 2], 520, 236, 3);
+          c.imageSmoothingEnabled = true;
+          // notas musicais
+          for (let i = 0; i < 6; i++) { const k = (t * 0.5 + i / 6) % 1; c.globalAlpha = 1 - k; c.fillStyle = ['#ffe060', '#ff7ad8', '#7aeaff'][i % 3]; const x = 200 + i * 60 + Math.sin(k * 6 + i) * 12, y = 150 - k * 110; c.fillRect(x, y, 5, 4); c.fillRect(x + 4, y - 12, 2, 13); c.fillRect(x + 4, y - 12, 6, 2); c.globalAlpha = 1; }
         }
-        // confete
-        for (let i = 0; i < 90; i++) { const k = (t * 0.25 + i * 0.0731) % 1, x = (i * 71.3 + Math.sin(t * 2 + i) * 20) % W, y = k * (H + 20) - 10; c.fillStyle = ['#ff4fd0', '#40e0ff', '#ffe060', '#7aff8a', '#ffffff'][i % 5]; c.save(); c.translate(x, y); c.rotate(t * 4 + i); c.fillRect(-3, -1.5, 6, 3); c.restore(); }
+        // plateia (cabeças e braços)
+        for (let i = 0; i < 24; i++) {
+          const x = i * 28 - 4, bob = Math.abs(Math.sin(t * 6 + i * 1.9)) * 6, hh = 52 + (i % 3) * 10;
+          ell(c, x, 360 - hh - bob, 12, 13, '#0e0610'); c.fillStyle = '#0e0610'; rr(c, x - 17, 360 - hh + 10 - bob, 34, hh, 10); c.fill();
+          if (i % 2) { c.save(); c.translate(x + 12, 360 - hh + 14 - bob); c.rotate(-2.7 + Math.sin(t * 7 + i) * 0.35); c.fillStyle = '#0e0610'; rr(c, -4, 0, 8, 30, 4); c.fill(); c.restore(); }
+          if (i % 5 === 2) { ell(c, x, 360 - hh - bob - 24, 7, 7, ['#ff4a5a', '#4aa8ff', '#ffd84f'][i % 3]); c.strokeStyle = '#2a1a2a'; c.beginPath(); c.moveTo(x, 360 - hh - bob - 17); c.lineTo(x + 2, 360 - hh - bob); c.stroke(); }
+        }
+        for (let i = 0; i < 70; i++) { const k = (t * 0.22 + i * 0.0731) % 1, x = (i * 71.3 + Math.sin(t * 2 + i) * 18) % W, y = k * (H + 20) - 10; c.fillStyle = ['#ff4fd0', '#40e0ff', '#ffe060', '#7aff8a', '#ffffff'][i % 5]; c.save(); c.translate(x, y); c.rotate(t * 4 + i); c.fillRect(-3, -1.5, 6, 3); c.restore(); }
       },
     },
-    { // 4. Fechada
-      dur: 9, tag: '', text: 'Até que um dia ela fechou. Ninguém sabe dizer por quê.', accents: ['#ff3aa0', '#d8e8ff'], dither: 30,
+    { // 4. Fechada: recorte de jornal
+      dur: 9, tag: '1993', text: 'Até que um dia ela fechou. Ninguém sabe dizer por quê.', accents: ['#e8e0c8', '#1a1418', '#a02020'], colors: 18, dither: 18,
+      cues: [[0.1, () => Sfx.rustle()], [4.5, () => Sfx.heartbeat()], [6.2, () => Sfx.heartbeat()]],
       draw(c, t) {
-        const flash = (t % 4.3 > 3.9 && t % 4.3 < 4.0) || (t % 4.3 > 4.08 && t % 4.3 < 4.14);
-        if (facadeImg) {
-          const z = 1.08 + t * 0.01;
-          c.drawImage(facadeImg, 0, 0, facadeImg.width, facadeImg.height, W / 2 - W * z / 2, H / 2 - H * z / 2 - 10, W * z, H * z);
-        }
-        c.fillStyle = flash ? 'rgba(200,220,255,0.35)' : 'rgba(6,6,24,0.62)'; c.fillRect(0, 0, W, H);
-        // tábuas na porta e fita
-        for (let i = 0; i < 4; i++) { c.save(); c.translate(320, 250 + i * 18); c.rotate((i % 2 ? 1 : -1) * 0.14); c.fillStyle = '#5a3a20'; c.fillRect(-70, -6, 140, 12); c.fillStyle = '#3a2412'; c.fillRect(-70, 4, 140, 2); c.restore(); }
-        c.save(); c.translate(320, 236); c.rotate(-0.2); c.fillStyle = '#e8c030'; c.fillRect(-200, -5, 400, 10); c.fillStyle = '#1a1a1a'; for (let x = -200; x < 200; x += 30) c.fillRect(x, -5, 14, 10); c.restore();
-        // placa FECHADO
-        c.save(); c.translate(240, 300 + Math.sin(t * 1.5) * 2); c.rotate(0.08); c.fillStyle = '#d8d0c0'; c.fillRect(-40, -16, 80, 32); c.fillStyle = '#a01818'; c.font = `10px ${FONT}`; c.textAlign = 'center'; c.fillText('FECHADO', 0, 4); c.restore(); c.textAlign = 'left';
-        rain(c, t, 260, 'rgba(170,190,240,0.5)', 0.22, 22);
-        // poças
-        c.fillStyle = 'rgba(255,58,160,0.12)'; c.fillRect(0, 330, W, 30);
+        // mesa escura e luz de abajur
+        c.fillStyle = '#140e0c'; c.fillRect(0, 0, W, H);
+        for (let y = 0; y < H; y += 7) { c.fillStyle = y % 14 ? '#1c1410' : '#181210'; c.fillRect(0, y, W, 7); }
+        const fl = 0.9 + 0.1 * Math.sin(t * 11) * Math.sin(t * 5.3);
+        glow(c, 380, 160, 340 * fl, '#ffcf8a', 0.32);
+        const z = 1 + t * 0.018;
+        c.save(); c.translate(320, 182); c.scale(z, z); c.rotate(-0.05 + t * 0.002);
+        // papel
+        c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(-196, -150, 400, 304);
+        c.fillStyle = '#d8ceb4'; c.fillRect(-200, -156, 400, 304);
+        for (let i = 0; i < 400; i++) { c.fillStyle = `rgba(90,70,40,${(i * 0.37 % 1) * 0.12})`; c.fillRect(-200 + (i * 53) % 400, -156 + (i * 31) % 304, 2, 2); }
+        c.fillStyle = '#1a1418'; c.font = `8px ${FONT}`; c.textAlign = 'center'; c.fillText('THE CALIFORNIA HERALD  -  1993', 0, -140);
+        c.fillRect(-190, -132, 380, 2); c.fillRect(-190, -128, 380, 1);
+        c.font = `16px ${FONT}`; c.fillText('HAWTON ARCADE', 0, -104); c.fillText('FECHA AS PORTAS', 0, -82);
+        c.font = `8px ${FONT}`; c.fillStyle = '#4a3a30'; c.fillText('Causa do fechamento nunca foi explicada', 0, -64); c.textAlign = 'left';
+        // foto da fachada em preto e branco
+        c.fillStyle = '#1a1418'; c.fillRect(-190, -52, 186, 124);
+        if (facadeImg) { c.filter = 'grayscale(1) contrast(1.3) brightness(0.8)'; c.drawImage(facadeImg, -187, -49, 180, 118); c.filter = 'none'; }
+        c.fillStyle = '#4a3a30'; c.font = `8px ${FONT}`; c.fillText('A fachada em 1993.', -188, 84);
+        // colunas de texto
+        for (let col = 0; col < 2; col++) for (let ln = 0; ln < 15; ln++) { const w = 80 - ((ln * 7 + col * 3) % 5) * 6; c.fillStyle = '#5a4a40'; c.fillRect(8 + col * 94, -50 + ln * 8, w, 3); }
+        // carimbo vermelho
+        c.save(); c.translate(110, 96); c.rotate(-0.2); c.strokeStyle = '#a02020'; c.lineWidth = 3; c.strokeRect(-56, -14, 112, 28); c.fillStyle = '#a02020'; c.font = `10px ${FONT}`; c.textAlign = 'center'; c.fillText('FECHADO', 0, 5); c.restore();
+        // mancha de café
+        c.strokeStyle = 'rgba(90,50,20,0.35)'; c.lineWidth = 5; c.beginPath(); c.arc(150, -110, 26, 0.3, 5.6); c.stroke();
+        c.restore();
+        const v = c.createRadialGradient(360, 170, 120, 360, 170, 430); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.85)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
       },
     },
     { // 5. Greg no celular (close)
-      dur: 8, tag: 'HOJE', text: 'Hoje, Greg passa o dia inteiro no celular.', accents: ['#8ae8ff', '#c8302e'], dither: 24,
+      dur: 8, tag: 'HOJE', cues: [[1.5, () => Sfx.ding(3)], [3.5, () => Sfx.ding(4)], [5.5, () => Sfx.ding(3)]], text: 'Hoje, Greg passa o dia inteiro no celular.', accents: ['#8ae8ff', '#c8302e'], dither: 24,
       draw(c, t) {
         c.fillStyle = '#05060e'; c.fillRect(0, 0, W, H);
         // janela ao fundo
@@ -356,7 +385,7 @@ window.Story = (() => {
       },
     },
     { // 6. Joe na porta
-      dur: 10, tag: '', speaker: 'JOE', lines: [[0, 'Sua infância não é uma infância!'], [4.6, 'Vocês são dominados por esse vício fácil! Vai fazer algo da vida!']], accents: ['#ffcf7a', '#8ae8ff'], dither: 24,
+      dur: 10, tag: '', speaker: 'JOE', cues: [[0.2, () => Sfx.doorOpen()], [0.6, () => Sfx.slam ? Sfx.slam() : 0]], lines: [[0, 'Sua infância não é uma infância!'], [4.6, 'Vocês são dominados por esse vício fácil! Vai fazer algo da vida!']], accents: ['#ffcf7a', '#8ae8ff'], dither: 24,
       draw(c, t) {
         c.fillStyle = '#06050c'; c.fillRect(0, 0, W, H);
         const push = 1 + t * 0.012; c.save(); c.translate(W / 2, H / 2); c.scale(push, push); c.translate(-W / 2, -H / 2);
@@ -381,7 +410,7 @@ window.Story = (() => {
       },
     },
     { // 7. Janela (sai de casa)
-      dur: 9, tag: '', text: 'Depois do último aviso, Greg resolve sair...', accents: ['#ffcf7a', '#c8302e', '#d8e8ff'], dither: 28,
+      dur: 9, tag: '', cues: [[0.1, () => Sfx.exterior()], [1.5, () => Sfx.creak()], [5, () => Sfx.thunder()]], text: 'Depois do último aviso, Greg resolve sair...', accents: ['#ffcf7a', '#c8302e', '#d8e8ff'], dither: 28,
       draw(c, t) {
         c.fillStyle = '#0a0c1e'; c.fillRect(0, 0, W, H);
         // parede de tijolos (vista de baixo)
@@ -407,7 +436,7 @@ window.Story = (() => {
       },
     },
     { // 8. A rua e o neon ao longe
-      dur: 10, tag: '', text: '...mas não para qualquer lugar. Para o único lugar onde seu pai não queria que ele fosse.', accents: ['#ff4fd0', '#ffe8b0'], dither: 26,
+      dur: 10, tag: '', cues: [[4, () => Sfx.thunder()]], text: '...mas não para qualquer lugar. Para o único lugar onde seu pai não queria que ele fosse.', accents: ['#ff4fd0', '#ffe8b0'], dither: 26,
       draw(c, t) {
         c.fillStyle = vgrad(c, 0, 220, ['#04030c', '#0e0a24', '#2a0e3a']); c.fillRect(0, 0, W, H);
         for (let i = 0; i < 70; i++) { c.fillStyle = `rgba(220,220,255,${0.3 + (i % 3) * 0.2})`; c.fillRect((i * 83.1) % W, (i * 41.7) % 160, 2, 2); }
@@ -437,6 +466,95 @@ window.Story = (() => {
         figure(c, GREG, 300 + t * 2, 296 - t * 2, 84 - t * 2.5, 'bag', { x: 330, y: 200, col: '#ff4fd0', rim: '#ff9ae8', amt: 0.1, dark: 0.75 }, { back: true, step: walk * 3 });
         rain(c, t, 200, 'rgba(170,190,240,0.4)', 0.15, 14);
         c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, 0, W, 40);
+      },
+    },
+    { // 9. A fachada abandonada
+      dur: 10, tag: 'HOJE, 23:47', text: 'Hawton Arcade. Abandonada há 30 anos.', accents: ['#ffd23a', '#ff3a3a', '#fff0d0', '#d8e8ff'], colors: 22, dither: 20,
+      cues: [[0.1, () => Sfx.exterior()], [3.2, () => Sfx.thunder()], [6.4, () => Sfx.click()], [7.4, () => Sfx.creak()]],
+      draw(c, t) {
+        const flash = (t > 3.1 && t < 3.22) || (t > 3.3 && t < 3.36);
+        c.fillStyle = vgrad(c, 0, 200, flash ? ['#a8b8e8', '#6a7aa8'] : ['#04030c', '#0e0c22', '#1a1430']); c.fillRect(0, 0, W, H);
+        // prédio
+        bricks(c, 60, 110, 520, 200, flash ? '#4a3a5a' : '#1e1628', flash ? '#3a2a48' : '#150f1e');
+        c.fillStyle = '#0c0812'; c.fillRect(50, 100, 540, 14);
+        // letreiro com letras falhando
+        c.fillStyle = '#2a0a1a'; rr(c, 120, 30, 400, 76, 10); c.fill(); c.strokeStyle = '#5a1a3a'; c.lineWidth = 3; rr(c, 120, 30, 400, 76, 10); c.stroke();
+        c.font = `26px ${FONT}`; c.textAlign = 'left';
+        const word = 'HAWTON', word2 = 'ARCADE';
+        const dead = [1, 4], flick = (i, ph) => Math.sin(t * 13 + i * 7 + ph) > (dead.includes(i) ? 0.85 : -0.6);
+        let x = 168; for (let i = 0; i < word.length; i++) { const on = flick(i, 0); c.shadowColor = '#ffd23a'; c.shadowBlur = on ? 14 : 0; c.fillStyle = on ? '#ffe070' : '#4a3a14'; c.fillText(word[i], x, 70); x += c.measureText(word[i]).width; }
+        c.font = `14px ${FONT}`; x = 236; for (let i = 0; i < word2.length; i++) { const on = flick(i, 3); c.shadowColor = '#ff3a3a'; c.shadowBlur = on ? 12 : 0; c.fillStyle = on ? '#ff8a7a' : '#4a1414'; c.fillText(word2[i], x, 96); x += c.measureText(word2[i]).width; }
+        c.shadowBlur = 0;
+        // janelas com tábuas
+        for (const wx of [90, 190, 380, 480]) { c.fillStyle = '#05040a'; c.fillRect(wx, 170, 70, 60); for (let k = 0; k < 3; k++) { c.save(); c.translate(wx + 35, 182 + k * 18); c.rotate((k % 2 ? 1 : -1) * 0.12); c.fillStyle = '#4a3020'; c.fillRect(-40, -5, 80, 10); c.fillStyle = '#2a1a10'; c.fillRect(-40, 3, 80, 2); c.restore(); } }
+        // porta que se abre sozinha
+        const open = clamp((t - 7.2) / 2, 0, 1);
+        c.fillStyle = '#020104'; c.fillRect(282, 196, 76, 114);
+        c.fillStyle = '#3a2418'; c.fillRect(282 + open * 30, 196, 38 - open * 30, 114); c.fillRect(320, 196, 38, 114);
+        c.fillStyle = '#5a3a24'; c.fillRect(318 + 0, 196, 2, 114);
+        // calçada e poças
+        c.fillStyle = '#100e18'; c.fillRect(0, 310, W, 50);
+        for (let i = 0; i < 6; i++) { c.fillStyle = 'rgba(255,210,60,0.12)'; c.fillRect(80 + i * 90, 322 + (i % 2) * 14, 60, 3); }
+        // Greg de costas com a lanterna
+        const lit = t > 6.4;
+        if (lit) { c.save(); c.globalAlpha = 0.25; c.fillStyle = '#fff0c8'; c.beginPath(); c.moveTo(326, 290); c.lineTo(282, 200); c.lineTo(360, 200); c.fill(); c.restore(); glow(c, 320, 250, 60, '#fff0c8', 0.35); }
+        figure(c, GREG, 326, 352, 96, 'idle', { x: 320, y: 60, col: '#ffd23a', rim: '#ffd890', amt: 0.1, dark: 0.75 }, { back: true });
+        if (flash) { c.fillStyle = 'rgba(220,230,255,0.35)'; c.fillRect(0, 0, W, H); }
+        rain(c, t, 260, 'rgba(170,190,240,0.45)', 0.2, 20);
+        const v = c.createRadialGradient(320, 200, 140, 320, 200, 420); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.75)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
+      },
+    },
+    { // 10. Lá dentro: olhos no escuro
+      dur: 11, tag: '', text: '', accents: ['#ffffff', '#ffe060', '#ff6a6a', '#ffd0a0'], colors: 16, dither: 14,
+      cues: [[0.2, () => Sfx.interior()], [3, () => Sfx.heartbeat()], [4.6, () => Sfx.heartbeat()], [5.8, () => Sfx.heartbeat()], [6.8, () => Sfx.heartbeat()], [7.6, () => Sfx.heartbeat()], [8.2, () => Sfx.heartbeat()], [8.7, () => Sfx.heartbeat()], [9.4, () => { Sfx.sting(); Sfx.staticBurst(0.6, 1.2); }]],
+      draw(c, t) {
+        const art = window.AnimArt;
+        c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+        // feixe da lanterna varrendo o palco
+        const ang = Math.sin(t * 0.55) * 0.9 - 0.1, bx = 320 + Math.sin(ang) * 260;
+        c.save(); c.beginPath(); c.moveTo(320, 420); c.lineTo(bx - 70, 120); c.lineTo(bx + 70, 120); c.closePath(); c.clip();
+        c.fillStyle = '#2a1a14'; c.fillRect(0, 0, W, H);
+        c.fillStyle = '#4a0a18'; for (let x = 0; x < W; x += 24) c.fillRect(x, 0, 12, 230);
+        c.fillStyle = '#5a3418'; c.fillRect(0, 230, W, 26);
+        if (art) {
+          const S = 4; c.imageSmoothingEnabled = false;
+          [['hootsy', 120], ['raft', 230], ['jester', 340], ['joly', 450], ['giggles', 540]].forEach(([id, x]) => { const im = art.spr[id][0]; c.drawImage(im, x - im.width * S / 2, 232 - im.height * S, im.width * S, im.height * S); });
+          c.imageSmoothingEnabled = true;
+        }
+        glow(c, bx, 200, 110, '#fff0c8', 0.35);
+        c.restore();
+        // poeira no feixe
+        for (let i = 0; i < 40; i++) { const k = (i * 0.137 + t * 0.05) % 1, y = 120 + k * 280, x = 320 + (bx - 320) * (1 - (y - 120) / 300) + Math.sin(i * 3 + t) * 40 * (1 - k); c.fillStyle = 'rgba(255,240,210,0.5)'; c.fillRect(x, y, 2, 2); }
+        // olhos acendendo um a um
+        const EY = [[120, 168, '#ffe060'], [230, 176, '#ffe8a0'], [340, 170, '#ffffff'], [450, 156, '#ffffff'], [540, 170, '#ff6a6a'], [70, 250, '#ffd0a0'], [600, 260, '#ffe060'], [20, 300, '#ff6a6a']];
+        EY.forEach(([x, y, col], i) => {
+          const on = t > 3 + i * 0.7; if (!on) return;
+          const blink = Math.sin(t * 2 + i * 3) > 0.96 ? 0 : 1;
+          if (!blink) return;
+          glow(c, x - 10, y, 14, col, 0.8); glow(c, x + 10, y, 14, col, 0.8);
+          c.fillStyle = col; c.fillRect(x - 12, y - 2, 5, 4); c.fillRect(x + 8, y - 2, 5, 4);
+        });
+        // susto final: rosto do Jester
+        if (t > 9.4 && art) {
+          const f = art.face('jester'), k = Math.min(1, (t - 9.4) / 0.15), sc = 3 + k * 2.2;
+          c.imageSmoothingEnabled = false; c.drawImage(f, 320 - 40 * sc + (Math.random() - 0.5) * 16, 180 - 40 * sc + (Math.random() - 0.5) * 16, 80 * sc, 80 * sc); c.imageSmoothingEnabled = true;
+          c.fillStyle = 'rgba(255,0,0,0.25)'; c.fillRect(0, 0, W, H);
+        }
+      },
+    },
+    { // 11. Título
+      dur: 5, tag: '', text: '', accents: ['#ff4fd0', '#40e0ff', '#ffffff'], colors: 14, dither: 12,
+      cues: [[0.05, () => { Sfx.zap(); Sfx.swell(3); }]],
+      draw(c, t) {
+        c.fillStyle = '#04020a'; c.fillRect(0, 0, W, H);
+        for (let i = 0; i < 120; i++) { c.fillStyle = `rgba(160,120,220,${Math.random() * 0.12})`; c.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
+        const on = t > 0.4 && (Math.sin(t * 23) > -0.7 || t > 2.2);
+        const gx = t < 1.2 ? (Math.random() - 0.5) * 20 : 0;
+        c.font = `40px ${FONT}`; c.textAlign = 'center';
+        c.shadowColor = '#ff4fd0'; c.shadowBlur = on ? 24 : 0; c.fillStyle = on ? '#ffd0f4' : '#3a0a2a'; c.fillText('HAWTON', 320 + gx, 168);
+        c.shadowColor = '#40e0ff'; c.font = `24px ${FONT}`; c.fillStyle = on ? '#c8f8ff' : '#0a2a3a'; c.fillText('ARCADE', 320 - gx, 210);
+        c.shadowBlur = 0; c.textAlign = 'left';
+        if (t < 1.2) for (let i = 0; i < 6; i++) { const y = Math.random() * H; const sl = c.getImageData(0, y, W, 6); c.putImageData(sl, (Math.random() - 0.5) * 40, y); }
       },
     },
   ];
@@ -474,7 +592,11 @@ window.Story = (() => {
     g.fillStyle = '#000'; g.fillRect(x - 2, y - 2, bw + 4, bh + 4);
     g.fillStyle = '#f0e8d8'; g.fillRect(x, y, bw, bh); g.fillStyle = '#05040a'; g.fillRect(x + 2, y + 2, bw - 4, bh - 4);
     if (speaker) { g.fillStyle = '#05040a'; g.fillRect(x + 12, y - 12, 50, 14); g.fillStyle = '#f0e8d8'; g.fillRect(x + 12, y - 12, 50, 2); g.fillRect(x + 12, y - 12, 2, 12); g.fillRect(x + 60, y - 12, 2, 12); text(g, speaker, x + 37, y - 8, '#ffcf7a', 8, 'center', null); }
+    if (st.lastS !== s) { st.lastS = s; st.lastN = 0; }
     let n = Math.floor(k * 40);
+    const tot = Math.min(s.length, Math.max(0, n));
+    if (tot > (st.lastN || 0) && tot % 2 === 0 && tot < s.length && window.Sfx) Sfx.typeTick();
+    st.lastN = tot;
     lines.forEach((ln, i) => { const part = ln.slice(0, Math.max(0, n)); n -= ln.length + 1; text(g, part, W / 2, y + 11 + i * 13 + (speaker ? 2 : 0), '#f8f4ec', 8, 'center', null); });
   }
 
@@ -671,11 +793,23 @@ window.Story = (() => {
     const s = SHOTS[st.i]; st.t += dt;
     if (st.t >= s.dur) { st.i++; st.t = 0; if (st.i >= SHOTS.length) { st.mode = 'done'; return; } return drawShot(g, 0); }
     seed = 11 + st.i;
+    if (st.cueShot !== st.i) { st.cueShot = st.i; st.fired = {}; if (st.i > 0 && window.Sfx) Sfx.staticBurst(0.3, 0.7); }
+    if (window.Sfx && s.cues) s.cues.forEach(([at, fn], k) => { if (!st.fired[k] && st.t >= at) { st.fired[k] = true; try { fn(); } catch (e) {} } });
     h.setTransform(1, 0, 0, 1, 0, 0); h.globalAlpha = 1; h.shadowBlur = 0; h.globalCompositeOperation = 'source-over';
     s.draw(h, st.t);
     const fade = Math.min(1, st.t / FADE, (s.dur - st.t) / FADE);
     pixelize(s, Math.max(0, fade));
     g.imageSmoothingEnabled = false; g.drawImage(lo, 0, 0, W, H);
+    // VHS: PLAY e data
+    if (s.vhs) {
+      if (Math.floor(st.t * 2) % 2 || st.t > 3) text(g, '> PLAY', 24, 34, '#f4f0e6', 8, 'left', '#000');
+      text(g, s.vhs, W - 24, H - 84, '#f4f0e6', 8, 'right', '#000');
+      const sec = Math.floor(st.t * 1) + 12; text(g, `00:0${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`, W - 24, H - 72, '#f4f0e6', 8, 'right', '#000');
+    }
+    // estática na troca de cena
+    st.glitch = 0;
+    if (st.i > 0 && st.t < 0.3) { const k = 1 - st.t / 0.3; st.glitch = k; for (let y = 0; y < H; y += 3) { const v = Math.random() * 220 | 0; g.fillStyle = `rgba(${v},${v},${v},${k * 0.85})`; g.fillRect(0, y, W, 3); } }
+    if (s.dur - st.t < 0.15) st.glitch = 0.6;
     // barras de cinema
     g.fillStyle = '#000'; g.fillRect(0, 0, W, 22);
     if (s.tag) text(g, s.tag, 16, 7, '#d8ccb8');
@@ -700,6 +834,7 @@ window.Story = (() => {
     setFacade(img) { facadeImg = img; },
     unlock() { try { if (!st.music) { st.music = new Audio('assets/story.mp3'); st.music.volume = 0.85; st.music.preload = 'auto'; } const p = st.music.play(); if (p && p.then) p.then(() => { if (st.mode !== 'story') st.music.pause(); }).catch(() => {}); else if (st.mode !== 'story') st.music.pause(); } catch (e) {} },
     get mode() { return st.mode; },
+    get glitch() { return st.glitch || 0; },
     loading() { st.mode = 'loading'; st.t = 0; },
     start(mode) { st.mode = mode; st.t = 0; st.i = 0; st.warnT = 0; st.creditsT = 0; if (mode === 'story') startMusic(); },
     // retorna: null (continua) | 'menu' | 'story' | 'skip' | 'credits' | 'done'
@@ -725,7 +860,7 @@ window.Story = (() => {
         if (st.mode === 'done') { fadeMusic(0.45, 1.5); return 'done'; }
       }
       else if (st.mode === 'loading') { st.t += dt; if (st.t > LOAD_T + 0.6) { st.mode = 'off'; return 'loading-done'; } }
-      else if (st.mode === 'credits') { st.creditsT += dt; if (st.creditsT > 4) { st.mode = 'off'; fadeMusic(0, 2.5); return 'credits-done'; } }
+      else if (st.mode === 'credits') { st.creditsT += dt; if (st.creditsT > 4) { st.mode = 'off'; fadeMusic(0.35, 2); return 'credits-done'; } }
       return null;
     },
     draw(g, dt) {
