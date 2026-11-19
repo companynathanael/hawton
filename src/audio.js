@@ -395,9 +395,75 @@ window.Sfx = (() => {
     burst('white', 'bandpass', 1800, 1, 0.3, 0.002, 1.1, 0.5);
   }
 
+
+  // ---- animatrônicos ----
+  function mstep(v = 1) {
+    if (!ready || v < 0.03) return;
+    burst('brown', 'lowpass', 220, 1, 0.9 * v, 0.003, 0.18, 0.6);
+    burst('white', 'bandpass', 900 + Math.random() * 300, 6, 0.14 * v, 0.002, 0.08, 0.5);
+  }
+  function scream() {
+    if (!ready) return;
+    const t = ac.currentTime;
+    for (const [f0, f1, type] of [[180, 90, 'sawtooth'], [240, 120, 'square'], [520, 260, 'sawtooth'], [61, 40, 'sawtooth']]) {
+      const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + 1.3);
+      const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 38; lg.gain.value = f0 * 0.18; lfo.connect(lg); lg.connect(o.frequency);
+      const g = ac.createGain(); o.connect(g); g.connect(master);
+      env(g, t, 0.01, 0.32, 1.4); o.start(t); lfo.start(t); o.stop(t + 1.5); lfo.stop(t + 1.5);
+    }
+    burst('white', 'highpass', 1800, 0.7, 1.4, 0.005, 1.3, 0.4);
+    burst('brown', 'lowpass', 300, 1, 2.2, 0.003, 1.0, 0.6);
+  }
+  function honk() {
+    if (!ready) return;
+    for (let i = 0; i < 2; i++) { tone('square', 330, 300, 0.32, 0.22, 0.8, i * 0.38); tone('sawtooth', 220, 210, 0.32, 0.18, 0.8, i * 0.38); }
+    laugh(1, 0.9);
+  }
+  function laugh(v = 1, delay = 0) {
+    if (!ready) return;
+    for (let i = 0; i < 7; i++) { const f = 520 - i * 25 + Math.random() * 40; tone('sawtooth', f, f * 0.7, 0.13, 0.09 * v, 1.0, delay + i * 0.16); burst('white', 'bandpass', 1400, 2, 0.06 * v, 0.005, 0.1, 0.8); }
+  }
+  function drum(v = 1) {
+    if (!ready || v < 0.03) return;
+    tone('sine', 220, 120, 0.15, 0.4 * v, 0.5); burst('white', 'bandpass', 2600, 3, 0.18 * v, 0.001, 0.06, 0.5);
+  }
+  function croak(v = 1) {
+    if (!ready || v < 0.03) return;
+    const t = ac.currentTime, o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(110, t); o.frequency.linearRampToValueAtTime(70, t + 0.35);
+    const am = ac.createOscillator(), amg = ac.createGain(); am.frequency.value = 30; amg.gain.value = 0.5; am.connect(amg);
+    const g = ac.createGain(); amg.connect(g.gain); const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 800;
+    o.connect(f); f.connect(g); g.connect(master); env(g, t, 0.02, 0.25 * v, 0.4); o.start(t); am.start(t); o.stop(t + 0.5); am.stop(t + 0.5);
+  }
+  function squeak(v = 1) { if (!ready || v < 0.03) return; tone('sine', 2400 + Math.random() * 600, 3400, 0.08, 0.08 * v, 0.4); tone('sine', 2800, 2200, 0.07, 0.06 * v, 0.4, 0.09); }
+  function snip() { if (!ready) return; burst('white', 'highpass', 4000, 1, 0.5, 0.001, 0.05, 0.3); zap(); }
+  function bang() { if (!ready) return; for (let i = 0; i < 3; i++) setTimeout(() => { burst('brown', 'lowpass', 180, 1, 1.6, 0.002, 0.35, 1.2); burst('white', 'bandpass', 700, 3, 0.4, 0.001, 0.1, 0.8); }, i * 260); }
+  function fall() { if (!ready) return; burst('brown', 'lowpass', 160, 1, 1.4, 0.002, 0.4, 0.6); tone('sine', 90, 40, 0.3, 0.3, 0.4); }
+  // música de piano da Hootsy (caixinha macabra em loop)
+  let pianoTimer = null, pianoVol = 0;
+  const PIANO = [[69, 0], [72, 1], [76, 2], [75, 3], [72, 4], [69, 5], [68, 6], [69, 7], [64, 8], [65, 9], [68, 10], [72, 11], [71, 12], [68, 13], [64, 14], [65, 15]];
+  function pianoNote(m, d, v) {
+    const f = 440 * Math.pow(2, (m - 69) / 12), t = ac.currentTime + d;
+    for (const [mul, a] of [[1, 1], [2, 0.35], [3, 0.12]]) {
+      const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = f * mul * (1 + (Math.random() - 0.5) * 0.004);
+      const g = ac.createGain(); o.connect(g); g.connect(master); const w = ac.createGain(); w.gain.value = 1.4; g.connect(w); w.connect(verbIn);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16 * a * v, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+      o.start(t); o.stop(t + 1.7);
+    }
+  }
+  function piano(on, v = 1) {
+    if (!ready) return;
+    pianoVol = v;
+    if (on && !pianoTimer) {
+      let bar = 0;
+      const play = () => { PIANO.forEach(([m, k]) => pianoNote(m - (bar % 2 ? 2 : 0), k * 0.42, pianoVol)); pianoNote(45 - (bar % 2 ? 2 : 0), 0, pianoVol * 0.8); pianoNote(52, 3.36, pianoVol * 0.6); bar++; };
+      play(); pianoTimer = setInterval(play, 16 * 420);
+    } else if (!on && pianoTimer) { clearInterval(pianoTimer); pianoTimer = null; }
+  }
+  function chime() { if (!ready) return; [0, 4, 7, 12, 7, 12, 16].forEach((st, i) => tone('triangle', 523 * Math.pow(2, st / 12), 523 * Math.pow(2, st / 12), 0.6, 0.16, 1.0, i * 0.28)); }
+
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
   return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume,
     pull, engineStart, setEngine, clunk, powerUp, tick, ding, deny, lampOn, success,
-    doorOpen, doorClose, pebbles, crash, glass, rumble, sting, slam, glitchCab, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
+    doorOpen, doorClose, mstep, scream, honk, laugh, drum, croak, squeak, snip, bang, fall, piano, chime, pebbles, crash, glass, rumble, sting, slam, glitchCab, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
 })();

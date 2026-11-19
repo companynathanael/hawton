@@ -3,6 +3,23 @@
 Jogo de exploração em pixel art (vista de cima), clima de terror de fliperama abandonado.
 Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com o puzzle da energia. Sem história e sem animatrônicos.
 
+## Noites e animatrônicos
+
+A noite vai de 12 AM a 6 AM (75 s por hora). Ao chegar às 6 AM a noite termina e começa a próxima, um pouco mais difícil. Se um animatrônico te pegar, vem o jumpscare e a noite recomeça.
+
+| Animatrônico | O que faz |
+|---|---|
+| **Jester** (coala cinza, guitarra) | Persegue o jogador o tempo todo, mas é muito lento. Mata. |
+| **Hootsy** (coruja marrom, piano) | Se a energia acabar e não voltar em 5 minutos, toca piano e puxa o jogador até ela. Mata. |
+| **Raft** (feneco amarelo, cantor) | A partir de 1 AM procura o jogador e o prende num puzzle sem saída. Não mata. |
+| **Bongo** (macaco, bateria) | Só acorda com o barulho do Mr. Giggles. Anda pulando, some no escuro (só a lanterna mostra) e mata. Volta a dormir quando o Mr. Giggles dorme. |
+| **Mr. Giggles** (palhaço) | Acorda 1 vez na noite 1 e 2 vezes a cada 2 horas a partir da noite 2. Chega perto e faz barulho, atraindo todos. Fugir dele: lanterna nele por 1,5 s. |
+| **Mousy** (rato rápido) | Nas horas ímpares corre entre os ratos até a sala de força. Se roer os fios: puzzle de emendar fios + painel. Afastar: lanterna nele ou encostar nele. |
+| **Wobble** (sapo) | Lento, pula. Se encostar, derruba o jogador por alguns segundos. |
+| **Joly** (flamingo) | Uma vez por noite corta os fios de 2 câmeras e corre até a sala de segurança. Mata. Porta fechada a faz desistir. |
+
+Portas de segurança fechadas seguram todos; portas comuns eles abrem depois de alguns segundos (o Mousy passa por baixo). Eles aparecem também nas câmeras 3D. Parâmetros de teste: `?night=2`, `?hour=3`, `?fast` (hora de 15 s), `?noai`.
+
 ## Abertura
 
 Aviso (jump scares, inspiração no FNAF, fase PRE-DEMO) → menu (NOVO JOGO, PULAR HISTÓRIA, CRÉDITOS) → história da família Hawton em 8 quadros animados com música (`src/story.js`, `assets/story.mp3`) → tela de carregamento → chegada na fachada → "CREATED BY: Nazinho" → jogo. Cada quadro é pintado em alta resolução e convertido em pixel art com paleta própria e dithering. Na história, ENTER avança e ESC pula.

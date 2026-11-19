@@ -217,10 +217,11 @@ function build(cfg) {
       dyn.pools.push(pool);
     }
   }
-  return { scene, cam, dyn };
+  return { scene, cam, dyn, inRoom };
 }
 
 const cache = {};
+const texCache = new Map();
 window.Cam3D = {
   ready: true,
   isGamer: n => !!(CAMS[n] && CAMS[n].gamer),
@@ -245,6 +246,25 @@ window.Cam3D = {
     }
     for (const p of s.dyn.pools) p.material.opacity = st.powered ? 0.18 + 0.06 * Math.sin(st.t * 3 + p.position.x) : 0;
     for (const D of s.dyn.doors) D.mesh.visible = !D.d || D.d.anim < 0.5;
+    // animatrônicos (figuras em pé viradas para a câmera)
+    s.bills = s.bills || {};
+    for (const k in s.bills) s.bills[k].visible = false;
+    for (const a of st.anims || []) {
+      if (!s.inRoom(Math.floor(a.x / 8), Math.floor(a.y / 8))) continue;
+      let m = s.bills[a.id];
+      if (!m) {
+        m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshLambertMaterial({ transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, emissive: '#ffffff', emissiveIntensity: 0.12 }));
+        s.scene.add(m); s.bills[a.id] = m;
+      }
+      if (m.userData.img !== a.img) {
+        const tx = texCache.get(a.img) || (() => { const t = texOf(a.img); texCache.set(a.img, t); return t; })();
+        m.material.map = tx; m.material.emissiveMap = tx; m.material.needsUpdate = true; m.userData.img = a.img;
+      }
+      const sc = 1.55, w = a.img.width * sc, hh = a.img.height * sc;
+      m.scale.set(w, hh, 1); m.position.set(a.x, hh / 2, a.y);
+      m.rotation.y = Math.atan2(s.cam.position.x - a.x, s.cam.position.z - a.y);
+      m.material.opacity = a.alpha; m.material.transparent = true; m.visible = a.alpha > 0.05;
+    }
     renderer.render(s.scene, s.cam);
     return renderer.domElement;
   },
