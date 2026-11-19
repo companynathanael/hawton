@@ -594,6 +594,8 @@
     consume('e');
 
     // portas
+    // sem energia, as portas de segurança não seguram: abrem sozinhas
+    if (!game.powered) for (const k of ['W', 'E']) { const d = sec.door[k]; if (d && !d.open) { d.open = true; if (game.t > 1) Sfx.secDoor(false); } }
     for (const d of Wd.doors) {
       const tgt = d.open ? 1 : 0;
       if (d.anim !== tgt) {
@@ -2626,7 +2628,7 @@
         if (distP(a) < 14) { a.state = 'flee'; a.doneHour = hi; Sfx.squeak(1); }
         else if (a.t > 3) {
           a.state = 'flee'; a.doneHour = hi;
-          game.ratCut = true; game.ratWires = false; game.powered = false; sec.cams = false; Sfx.zap(); Sfx.powerDown();
+          game.ratCut = true; game.ratWires = false; game.powered = false; sec.cams = false; sec.door.W.open = sec.door.E.open = true; Sfx.zap(); Sfx.powerDown();
           for (const l of D.lights) l.lit = false; post.glitch = 1; cam.shake = 3;
           showMsg('Os fios da sala de força foram roídos!');
         }
@@ -2993,10 +2995,11 @@
   function blackout() {
     game.energy = 0; game.powered = false; game.gen = false; game.outT = 0;
     Sfx.powerDown(); Sfx.engineStop();
+    if (!sec.door.W.open || !sec.door.E.open) Sfx.secDoor(false);
     sec.door.W.open = sec.door.E.open = true; sec.light.W = sec.light.E = false; sec.cams = false;
     for (const l of D.lights) l.lit = false;
     post.glitch = 1; cam.shake = 3;
-    showMsg('A energia acabou.');
+    showMsg('A energia acabou. As portas se abriram!');
   }
 
   // =====================================================================
