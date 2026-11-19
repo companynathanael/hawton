@@ -5,7 +5,7 @@ Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com 
 
 ## Noites e animatrônicos
 
-A noite vai de 12 AM a 6 AM (75 s por hora). Ao chegar às 6 AM a noite termina e começa a próxima, um pouco mais difícil. Se um animatrônico te pegar, vem o jumpscare e a noite recomeça.
+A noite só começa depois da chave, do gerador e do painel, quando o jogador entra na sala de segurança. Ela vai de 12 AM a 6 AM (75 s por hora). Jester e Raft começam no palco do Salão B, Hootsy e Joly no palco do Salão A; Bongo no Arcade 2, Mr. Giggles no Arcade 5, Wobble na cozinha e Mousy no porão. Ao morrer ou passar de noite, a próxima tentativa já começa na sala de segurança com energia. Ao chegar às 6 AM a noite termina e começa a próxima, um pouco mais difícil. Se um animatrônico te pegar, vem o jumpscare e a noite recomeça.
 
 | Animatrônico | O que faz |
 |---|---|

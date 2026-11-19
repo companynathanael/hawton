@@ -470,7 +470,7 @@
   const puffs = [];
 
   let gfxReady = false;
-  function startGame() {
+  function startGame(mode) {
     if (GFX_ON && !gfxReady) { gfxReady = true; window.Gfx.init(Wd); }
     state = 'game';
     setRes(GW, GH);
@@ -489,8 +489,14 @@
     resetScares();
     if (!game.nightInit) { game.nightInit = true; const m = location.search.match(/[?&]night=(\d+)/); game.night = m ? +m[1] : 1; }
     { const m = location.search.match(/[?&]hour=([\d.]+)/); game.clock = m && !game.clockInit ? +m[1] * HOUR_LEN : 0; game.clockInit = true; }
-    game.dead = game.win = null; P.fall = 0;
+    game.dead = game.win = null; P.fall = 0; game.nightOn = false; game.nightT = 0;
     resetAnims();
+    if (mode === 'night' || /[?&]lit\b/.test(location.search)) {
+      game.hasKey = true; Wd.doors.forEach(d => d.locked = false);
+      game.gen = true; game.genT = -99; game.powered = true; game.powerT = -99; game.energy = 100;
+      if (mode === 'night') { P.x = 150; P.y = 100; P.dir = 'down'; cam.x = camX(P.x - GW / 2); cam.y = camY(P.y - 8 - GH / 2); Sfx.engineStart(); }
+      game.nightOn = true; game.nightT = 0;
+    }
     if (/[?&]lit\b/.test(location.search)) { game.hasKey = true; Wd.doors.forEach(d => d.locked = false); game.gen = true; game.genT = -99; game.powered = true; game.powerT = -99; }
   }
 
@@ -1203,8 +1209,9 @@
       if (!game.hasKey) obj = '> PEGAR A CHAVE NA RECEPCAO';
       else if (!game.gen) obj = '> LIGAR O GERADOR';
       else if (!game.powered) obj = '> PAINEL ELETRICO';
+      else if (AI_ON && !game.nightOn) obj = '> IR PARA A SEGURANCA';
       else if (game.t - game.powerT < 6) obj = '> ENERGIA OK';
-      if (obj) text(obj, GW - 10, 22, game.powered ? '#8dff7a' : '#c8b8e8', 'right', 0.55 + 0.15 * Math.sin(game.t * 2));
+      if (obj) text(obj, GW - 10, game.powered && game.t - game.powerT >= 6 ? 44 : 22, game.powered ? '#8dff7a' : '#c8b8e8', 'right', 0.55 + 0.15 * Math.sin(game.t * 2));
     }
     if (game.powered && !sec.seated) energyHUD(GW - 10, game.t - game.powerT < 6 ? 34 : 22, 'right');
     if (game.prompt && !game.tp && !game.ui) {
@@ -2276,20 +2283,20 @@
 
   // ---------- definição dos animatrônicos ----------
   const ADEF = [
-    { id: 'jester', name: 'JESTER', home: [1060, 372], lethal: true },
-    { id: 'hootsy', name: 'HOOTSY', home: [1250, 118], lethal: true },
-    { id: 'raft', name: 'RAFT', home: [1140, 372] },
-    { id: 'bongo', name: 'BONGO', home: [972, 372], lethal: true },
+    { id: 'jester', name: 'JESTER', home: [1030, 362], stage: [1030, 344], lethal: true },
+    { id: 'hootsy', name: 'HOOTSY', home: [1258, 96], stage: [1300, 96], lethal: true },
+    { id: 'raft', name: 'RAFT', home: [1084, 362], stage: [1084, 344] },
+    { id: 'bongo', name: 'BONGO', home: [200, 440], lethal: true },
     { id: 'giggles', name: 'MR. GIGGLES', home: [878, 470] },
     { id: 'mousy', name: 'MOUSY', home: [1004, 704] },
     { id: 'wobble', name: 'WOBBLE', home: [700, 272] },
-    { id: 'joly', name: 'JOLY', home: [984, 72], lethal: true },
+    { id: 'joly', name: 'JOLY', home: [1258, 140], stage: [1300, 146], lethal: true },
   ];
   const RAT_SPOTS = [[920, 650], [1060, 690], [960, 720], [700, 290], [820, 250], [1020, 540], [1150, 270], [1210, 290], [600, 530], [1080, 610]];
   let anims = [], rats = [];
   const A = id => anims.find(a => a.id === id);
   function resetAnims() {
-    anims = ADEF.map(d => { const [x, y] = snap(d.home[0], d.home[1]); return Object.assign({}, d, { x, y, hx: x, hy: y, state: 'idle', field: new Int16Array(NT), fieldT: -9, fieldKey: -1, next: -1, dir: 1, ft: 0, step: 0, cd: 0, doorWait: 0, blockT: 0, t: 0, moving: false, alpha: 1 }); });
+    anims = ADEF.map(d => { const [hx, hy] = snap(d.home[0], d.home[1]), [x, y] = d.stage || [hx, hy]; return Object.assign({}, d, { x, y, hx, hy, onStage: !!d.stage, state: 'idle', field: new Int16Array(NT), fieldT: -9, fieldKey: -1, next: -1, dir: 1, ft: 0, step: 0, cd: 0, doorWait: 0, blockT: 0, t: 0, moving: false, alpha: 1 }); });
     rats = RAT_SPOTS.map(([x, y]) => { const [sx, sy] = snap(x, y); return { x: sx, y: sy, tx: sx, ty: sy, wait: Math.random() * 3, dir: 1, ft: 0 }; });
     const n = game.night || 1;
     const g = A('giggles'); g.wakes = n === 1 ? [rnd(1.4, 3.6)] : [0, 2, 4].flatMap(h => [h + rnd(0.25, 0.6), h + rnd(1.1, 1.6)]);
@@ -2359,7 +2366,18 @@
 
   function updateAnims(dt) {
     if (!AI_ON || game.dead || game.win) return;
+    if (!game.nightOn) {
+      if (game.powered && playerInSecurity()) { game.nightOn = true; game.nightT = game.t; Sfx.chime(); }
+      return;
+    }
     game.clock += dt;
+    for (const a of anims) {
+      if (a.stage) {
+        const home = Math.hypot(a.x - a.hx, a.y - a.hy) < 6, onSt = Math.hypot(a.x - a.stage[0], a.y - a.stage[1]) < 2;
+        if (a.onStage && !onSt) a.onStage = false;
+        if (a.state === 'idle' && home) { a.x = a.stage[0]; a.y = a.stage[1]; a.onStage = true; a.next = -1; }
+      }
+    }
     const hour = hourNow(), hi = Math.floor(hour);
     if (hour >= 6) { game.win = { t: 0 }; Sfx.piano(false); Sfx.chime(); game.ui = null; sec.cams = false; return; }
     game.noiseT = Math.max(0, game.noiseT - dt);
@@ -2480,7 +2498,7 @@
         if (game.outT > 240 && !a.warned) { a.warned = true; showMsg('Você ouve teclas de piano ao longe...'); }
         if (game.outT > 300 && !game.lure) { game.lure = true; a.state = 'play'; Sfx.piano(true, 0.6); showMsg('A música... você não consegue parar de andar.'); }
       }
-      if (game.lure) { Sfx.piano(true, clamp(1 - distP(a) / 600, 0.25, 1)); if (distP(a) < 16) kill(a); }
+      if (game.lure) { Sfx.piano(true, clamp(1 - distP(a) / 600, 0.25, 1)); if (distP(a) < 16 || Math.hypot(P.x - a.hx, P.y - a.hy) < 12) kill(a); }
     }
     // --- ratos comuns (camuflagem do Mousy)
     for (const r of rats) {
@@ -2509,12 +2527,12 @@
     if (!game.lure) return null;
     const a = A('hootsy');
     if (!a.lureField) a.lureField = new Int16Array(NT);
-    if (game.t - (a.lureT || -9) > 0.5) { const t = tIdx(a.x, a.y); bfs(t % Wd.TW, (t / Wd.TW) | 0, 'chase', a.lureField); a.lureT = game.t; }
+    if (game.t - (a.lureT || -9) > 0.5) { const t = tIdx(a.hx, a.hy); bfs(t % Wd.TW, (t / Wd.TW) | 0, 'chase', a.lureField); a.lureT = game.t; }
     const f = a.lureField, ct = tIdx(P.x, P.y - 2);
-    if (distP(a) < 26 && lineClear(P.x, P.y, a.x, a.y)) { const dx = a.x - P.x, dy = a.y - P.y, d = Math.hypot(dx, dy) || 1; return [dx / d * 0.7, dy / d * 0.7]; }
+    if (Math.hypot(P.x - a.hx, P.y - a.hy) < 26) { const dx = a.hx - P.x, dy = a.hy - P.y, d = Math.hypot(dx, dy) || 1; return [dx / d * 0.7, dy / d * 0.7]; }
     let best = -1, bd = f[ct] < 0 ? 1e9 : f[ct];
     for (const n of [ct - 1, ct + 1, ct - Wd.TW, ct + Wd.TW]) if (f[n] >= 0 && f[n] < bd) { bd = f[n]; best = n; }
-    if (best < 0) { const dx = a.x - P.x, dy = a.y - P.y, d = Math.hypot(dx, dy) || 1; return [dx / d * 0.7, dy / d * 0.7]; }
+    if (best < 0) { const dx = a.hx - P.x, dy = a.hy - P.y, d = Math.hypot(dx, dy) || 1; return [dx / d * 0.7, dy / d * 0.7]; }
     if (passS[best] === 2) { const d = Wd.doors[doorIdx[best]]; if (d.type === 'door' && !d.open && !d.locked) { d.open = true; Sfx.doorOpen(); } }
     const nx = (best % Wd.TW) * 8 + 4 - P.x, ny = ((best / Wd.TW) | 0) * 8 + 6 - P.y, d = Math.hypot(nx, ny) || 1;
     return [nx / d * 0.7, ny / d * 0.7];
@@ -2530,10 +2548,10 @@
     if (!AI_ON) return;
     for (const r of rats) if (!front) drawSpr(ASPR.rat[Math.floor(r.ft * 8) % 2], r.x - cx, r.y - cy, r.dir, 1);
     for (const a of anims) {
-      if ((a.y > P.y) !== front) continue;
+      if ((a.y > P.y || a.onStage) !== front) continue;
       const sx = a.x - cx, sy = a.y - cy;
       if (sx < -40 || sy < -50 || sx > VW + 40 || sy > VH + 40) continue;
-      if (a.id === 'hootsy') g.drawImage(PIANO_SPR, Math.round(sx - 32), Math.round(sy - 20));
+      if (a.id === 'hootsy') g.drawImage(PIANO_SPR, Math.round(a.stage[0] - cx - 32), Math.round(a.stage[1] - cy - 20));
       if (a.id === 'mousy') { drawSpr(ASPR.rat[Math.floor(game.t * 10) % 2], sx, sy, a.dir, 1); continue; }
       const al = animAlpha(a);
       g.globalAlpha = 0.45 * al; g.fillStyle = '#000'; g.beginPath(); g.ellipse(Math.round(sx), Math.round(sy - 1), 7, 2.4, 0, 0, Math.PI * 2); g.fill();
@@ -2568,22 +2586,22 @@
 
   // ---------- relógio, jumpscare, game over e 6 AM ----------
   function drawClock() {
-    if (!AI_ON) return;
-    const h = Math.min(6, Math.floor(hourNow()));
+    if (!AI_ON || !game.nightOn) return;
+    const h = Math.min(6, Math.floor(hourNow())), nt = game.t - (game.nightT || 0);
     if (game.hintT > 9 || sec.seated) { g.globalAlpha = 0.7; g.fillStyle = '#000'; g.fillRect(4, GH - 18, 132, 13); g.globalAlpha = 1; text(`NOITE ${game.night || 1}`, 8, GH - 15, '#9a8fb0'); text(hourLabel(h), 132, GH - 15, '#f0e2c0', 'right'); }
-    if (game.t < 4.5) { const al = clamp(Math.min(game.t - 0.5, 4.5 - game.t), 0, 1); g.globalAlpha = al; g.font = `16px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#000'; g.fillText(`NOITE ${game.night || 1}`, GW / 2 + 1, GH / 2 - 29); g.fillStyle = '#f0e2c0'; g.fillText(`NOITE ${game.night || 1}`, GW / 2, GH / 2 - 30); g.textAlign = 'left'; text('12:00 AM', GW / 2, GH / 2 - 8, '#b8acc8', 'center', al); g.globalAlpha = 1; }
+    if (nt < 4.5) { const al = clamp(Math.min(nt - 0.5, 4.5 - nt), 0, 1); g.globalAlpha = al; g.font = `16px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#000'; g.fillText(`NOITE ${game.night || 1}`, GW / 2 + 1, GH / 2 - 29); g.fillStyle = '#f0e2c0'; g.fillText(`NOITE ${game.night || 1}`, GW / 2, GH / 2 - 30); g.textAlign = 'left'; text('12:00 AM', GW / 2, GH / 2 - 8, '#b8acc8', 'center', al); g.globalAlpha = 1; }
     if (game.noiseT > 0 && Math.floor(game.t * 4) % 2) text('! BARULHO !', GW / 2, 30, '#ff5a4a', 'center', 0.9);
     if (game.lure) text('♪', GW / 2 + Math.sin(game.t * 3) * 30, 30, '#ffe060', 'center', 0.8);
   }
   function updateEnd(dt) {
     if (game.dead) {
       game.dead.t += dt; game.t += dt;
-      if (game.dead.t > 2.2 && (consume('enter') || consume(' ') || consume('e') || consume('click'))) { startGame(); }
+      if (game.dead.t > 2.2 && (consume('enter') || consume(' ') || consume('e') || consume('click'))) { startGame('night'); }
       return true;
     }
     if (game.win) {
       game.win.t += dt; game.t += dt;
-      if (game.win.t > 6 || (game.win.t > 2 && (consume('enter') || consume(' ')))) { game.night = (game.night || 1) + 1; startGame(); }
+      if (game.win.t > 6 || (game.win.t > 2 && (consume('enter') || consume(' ')))) { game.night = (game.night || 1) + 1; startGame('night'); }
       return true;
     }
     return false;
