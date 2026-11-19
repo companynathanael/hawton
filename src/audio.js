@@ -36,6 +36,7 @@ window.Sfx = (() => {
     verb = ac.createConvolver(); verb.buffer = impulse(3.2, 2.6);
     verbIn = ac.createGain(); verbIn.gain.value = 0.6;
     verbIn.connect(verb); verb.connect(master);
+    setTimeout(loadJumpscares, 0);
     bufs.white = noise('white'); bufs.brown = noise('brown', 4); bufs.pink = noise('pink', 4);
     ready = true;
   }
@@ -485,8 +486,19 @@ window.Sfx = (() => {
     const w = ac.createGain(); w.gain.value = 0.5; g.connect(w); w.connect(verbIn);
     env(g, t, 0.006, peak, dur); o.start(t); o.stop(t + dur + 0.1);
   }
+  // áudios gravados dos jumpscares (assets/sfx)
+  const jsBuf = {};
+  function loadJumpscares() {
+    for (const id of ['jester', 'hootsy', 'bongo', 'joly']) {
+      if (jsBuf[id]) continue; jsBuf[id] = 'loading';
+      fetch(`assets/sfx/jumpscare_${id}.mp3`).then(r => r.arrayBuffer()).then(b => ac.decodeAudioData(b)).then(buf => { jsBuf[id] = buf; }).catch(() => { jsBuf[id] = null; });
+    }
+  }
+  function playBuf(buf, vol = 1) { const s = ac.createBufferSource(); s.buffer = buf; const g = ac.createGain(); g.gain.value = vol; s.connect(g); g.connect(master); const w = ac.createGain(); w.gain.value = 0.25; g.connect(w); w.connect(verbIn); s.start(); }
   function jumpscare(id) {
     if (!ready) return;
+    const rec = jsBuf[id] instanceof AudioBuffer ? jsBuf[id] : null;
+    if (rec) playBuf(rec, 1.15);
     // base comum: pancada grave, metal, servo e ruído
     osc('sine', 90, 28, 0.9, 0.9); osc('sine', 60, 30, 1.2, 0.6, 0.02);
     burst('white', 'bandpass', 3200, 10, 0.6, 0.001, 0.4, 1.0); burst('white', 'bandpass', 1900, 12, 0.5, 0.001, 0.6, 1.2);
@@ -496,7 +508,7 @@ window.Sfx = (() => {
     else if (id === 'hootsy') { osc('sawtooth', 2200, 900, 1.1, 0.16, 0, 30, 28, 300); osc('square', 1600, 700, 1.0, 0.1, 0.05, 20, 33, 200); for (let i = 0; i < 8; i++) osc('triangle', 55 * Math.pow(2, (i * 1.3) / 12), 54, 1.6, 0.12, 0.01); }
     else if (id === 'bongo') { for (let i = 0; i < 10; i++) { osc('sine', 240 - i * 6, 110, 0.14, 0.5, i * 0.07); burst('white', 'bandpass', 2600, 3, 0.25, 0.001, 0.06, 0.6); } burst('white', 'highpass', 5000, 0.7, 0.6, 0.002, 1.0, 1.2); }
     else if (id === 'joly') { osc('square', 1100, 420, 0.8, 0.16, 0, 25, 45, 250); osc('sawtooth', 900, 300, 1.0, 0.12, 0.08, 20, 60, 180); }
-    setTimeout(() => scream(), 40);
+    if (!rec) setTimeout(() => scream(), 40);
   }
   function deathDrone() {
     if (!ready) return;
