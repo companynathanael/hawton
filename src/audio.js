@@ -475,9 +475,38 @@ window.Sfx = (() => {
   function typeTick() { if (!ready) return; burst('white', 'bandpass', 2600 + Math.random() * 800, 4, 0.07, 0.001, 0.03, 0.05); }
   function swell(sec = 3) { if (!ready) return; tone('sawtooth', 55, 110, sec, 0.06, 1.2); tone('sine', 82, 164, sec, 0.08, 1.2); burst('pink', 'lowpass', 400, 1, 0.35, sec * 0.9, 0.4, 1.0); }
 
+
+  // ---- jumpscare em camadas ----
+  function distortion(amount) { const ws = ac.createWaveShaper(), n = 1024, cv = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; cv[i] = (3 + amount) * x * 20 * Math.PI / 180 / (Math.PI + amount * Math.abs(x)); } ws.curve = cv; return ws; }
+  function osc(type, f0, f1, dur, peak, delay = 0, dist = 0, lfoF = 0, lfoA = 0) {
+    const t = ac.currentTime + delay, o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    let lfo; if (lfoF) { lfo = ac.createOscillator(); const lg = ac.createGain(); lfo.frequency.value = lfoF; lg.gain.value = lfoA; lfo.connect(lg); lg.connect(o.frequency); lfo.start(t); lfo.stop(t + dur + 0.1); }
+    const g = ac.createGain(); let node = o; if (dist) { const ws = distortion(dist); o.connect(ws); node = ws; } node.connect(g); g.connect(master);
+    const w = ac.createGain(); w.gain.value = 0.5; g.connect(w); w.connect(verbIn);
+    env(g, t, 0.006, peak, dur); o.start(t); o.stop(t + dur + 0.1);
+  }
+  function jumpscare(id) {
+    if (!ready) return;
+    // base comum: pancada grave, metal, servo e ruído
+    osc('sine', 90, 28, 0.9, 0.9); osc('sine', 60, 30, 1.2, 0.6, 0.02);
+    burst('white', 'bandpass', 3200, 10, 0.6, 0.001, 0.4, 1.0); burst('white', 'bandpass', 1900, 12, 0.5, 0.001, 0.6, 1.2);
+    osc('sawtooth', 180, 900, 0.5, 0.12, 0, 0, 40, 60);
+    burst('white', 'highpass', 1500, 0.7, 1.2, 0.003, 1.2, 0.4);
+    if (id === 'jester') { for (const f of [82, 123, 164, 247]) osc('sawtooth', f, f * 0.94, 1.3, 0.12, 0.02, 60); }
+    else if (id === 'hootsy') { osc('sawtooth', 2200, 900, 1.1, 0.16, 0, 30, 28, 300); osc('square', 1600, 700, 1.0, 0.1, 0.05, 20, 33, 200); for (let i = 0; i < 8; i++) osc('triangle', 55 * Math.pow(2, (i * 1.3) / 12), 54, 1.6, 0.12, 0.01); }
+    else if (id === 'bongo') { for (let i = 0; i < 10; i++) { osc('sine', 240 - i * 6, 110, 0.14, 0.5, i * 0.07); burst('white', 'bandpass', 2600, 3, 0.25, 0.001, 0.06, 0.6); } burst('white', 'highpass', 5000, 0.7, 0.6, 0.002, 1.0, 1.2); }
+    else if (id === 'joly') { osc('square', 1100, 420, 0.8, 0.16, 0, 25, 45, 250); osc('sawtooth', 900, 300, 1.0, 0.12, 0.08, 20, 60, 180); }
+    setTimeout(() => scream(), 40);
+  }
+  function deathDrone() {
+    if (!ready) return;
+    for (const [f, d] of [[55, 0], [58.3, 0.1], [82.4, 0.4], [87.3, 0.6]]) osc('sawtooth', f, f * 0.98, 4.5, 0.05, d);
+    for (let i = 0; i < 6; i++) { const f = [440, 415, 392, 370, 349, 330][i]; osc('triangle', f, f, 0.9, 0.06, 0.8 + i * 0.55); }
+  }
+
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
   return { init, exterior, interior, buzz, thunder, step, click, zap, creak, clank, blip, whoosh, rattle, heartbeat, riser, setHum, setDrone, resume,
     pull, engineStart, setEngine, clunk, powerUp, tick, ding, deny, lampOn, success,
-    doorOpen, doorClose, staticBurst, tape, crowd, rustle, typeTick, swell, mstep, scream, honk, laugh, drum, croak, squeak, snip, bang, fall, piano, chime, pebbles, crash, glass, rumble, sting, slam, glitchCab, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
+    doorOpen, doorClose, jumpscare, deathDrone, staticBurst, tape, crowd, rustle, typeTick, swell, mstep, scream, honk, laugh, drum, croak, squeak, snip, bang, fall, piano, chime, pebbles, crash, glass, rumble, sting, slam, glitchCab, secDoor, lightToggle, camSwitch, coin, powerDown, engineStop, get ready() { return ready; } };
 })();

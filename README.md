@@ -5,7 +5,7 @@ Por enquanto: tela inicial → cutscene da fachada → exploração do mapa com 
 
 ## Noites e animatrônicos
 
-A noite só começa depois da chave, do gerador e do painel, quando o jogador entra na sala de segurança. Ela vai de 12 AM a 6 AM (75 s por hora). Jester e Raft começam no palco do Salão B, Hootsy e Joly no palco do Salão A; Bongo no Arcade 2, Mr. Giggles no Arcade 5, Wobble na cozinha e Mousy no porão. Ao morrer ou passar de noite, a próxima tentativa já começa na sala de segurança com energia. Ao chegar às 6 AM a noite termina e começa a próxima, um pouco mais difícil. Se um animatrônico te pegar, vem o jumpscare e a noite recomeça.
+A noite só começa depois da chave, do gerador e do painel, quando o jogador entra na sala de segurança. Ela vai de 12 AM a 6 AM (75 s por hora). Jester e Raft começam no palco do Salão B, Hootsy e Joly no palco do Salão A; Bongo no Arcade 2, Mr. Giggles no Arcade 5, Wobble na cozinha e Mousy no porão. Ao morrer ou passar de noite, a próxima tentativa já começa na sala de segurança com energia. Ao chegar às 6 AM a noite termina e começa a próxima, um pouco mais difícil. Se um animatrônico te pegar, vem o jumpscare (rosto em pixel art com a boca abrindo, separação de cor e som em camadas) e a tela de morte, com a hora alcançada, uma dica e as opções TENTAR DE NOVO ou MENU PRINCIPAL.
 
 | Animatrônico | O que faz |
 |---|---|
@@ -22,7 +22,7 @@ Portas de segurança fechadas seguram todos; portas comuns eles abrem depois de 
 
 ## Abertura
 
-Aviso → menu (NOVO JOGO, PULAR HISTÓRIA, CRÉDITOS) → história em 11 quadros de pixel art 2D animados (`src/story.js`) com música (`assets/story.mp3`) e efeitos sonoros → "CREATED BY: Nazinho" → tela de carregamento → jogo.
+Aviso → menu (NOVO JOGO → MODO HISTÓRIA / PULAR HISTÓRIA; CRÉDITOS) → história em 11 quadros de pixel art 2D animados (`src/story.js`) com música (`assets/story.mp3`) e efeitos sonoros → "CREATED BY: Nazinho" → tela de carregamento → jogo.
 
 Quadros: Califórnia 1986, a oficina do Joe e o show de inauguração (os três como fita VHS antiga, com PLAY, data e tracking), o jornal de 1993 sobre o fechamento, o Greg no celular, o Joe na porta, a fuga pela janela, a rua, a fachada abandonada com o letreiro falhando, os olhos acendendo no escuro e o título. Entre os quadros há estática de TV; o texto aparece com som de máquina de escrever. ENTER avança, ESC pula.
 

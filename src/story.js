@@ -641,7 +641,8 @@ window.Story = (() => {
   function vign(g) { const v = g.createRadialGradient(W / 2, H / 2, 140, W / 2, H / 2, 420); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.7)'); g.fillStyle = v; g.fillRect(0, 0, W, H); }
 
   // ---------------- menu ----------------
-  const MENU = ['NOVO JOGO', 'PULAR HISTORIA', 'CREDITOS'];
+  const MAIN_MENU = ['NOVO JOGO', 'CREDITOS'], SUB_MENU = ['MODO HISTORIA', 'PULAR HISTORIA', 'VOLTAR'];
+  const curMenu = () => st.sub ? SUB_MENU : MAIN_MENU;
   const menuShot = { colors: 20, accents: ['#ff4fd0', '#40e0ff'], dither: 22 };
   function drawMenu(g, t) {
     h.fillStyle = '#05040a'; h.fillRect(0, 0, W, H);
@@ -656,7 +657,8 @@ window.Story = (() => {
     text(g, 'HAWTON', 40, 60, fl ? '#ff8ae6' : '#7a2a6a', 32, 'left', null);
     g.shadowColor = '#40e0ff'; text(g, 'ARCADE', 40, 100, '#7aeaff', 32, 'left', null); g.shadowBlur = 0;
     text(g, 'PRE-DEMO', 44, 142, '#6a6078', 8);
-    MENU.forEach((m, i) => {
+    if (st.sub) { text(g, 'NOVO JOGO', 40, 170, '#ff8ae6', 8); g.fillStyle = '#5a2a5a'; g.fillRect(40, 182, 120, 1); }
+    curMenu().forEach((m, i) => {
       const sel = i === st.menuSel, y = 190 + i * 22;
       if (sel) { g.fillStyle = 'rgba(255,79,208,0.18)'; g.fillRect(36, y - 6, 200, 20); g.fillStyle = '#ff4fd0'; g.fillRect(36, y - 6, 3, 20); text(g, '>', 46, y, '#ff8ae6'); }
       text(g, m, 64, y, sel ? '#ffffff' : '#b8acc8');
@@ -836,20 +838,25 @@ window.Story = (() => {
     get mode() { return st.mode; },
     get glitch() { return st.glitch || 0; },
     loading() { st.mode = 'loading'; st.t = 0; },
-    start(mode) { st.mode = mode; st.t = 0; st.i = 0; st.warnT = 0; st.creditsT = 0; if (mode === 'story') startMusic(); },
+    start(mode) { st.mode = mode; st.t = 0; st.sub = false; st.menuSel = 0; st.i = 0; st.warnT = 0; st.creditsT = 0; if (mode === 'story') startMusic(); },
     // retorna: null (continua) | 'menu' | 'story' | 'skip' | 'credits' | 'done'
     update(dt, inp) {
       if (st.mode === 'done') { st.mode = 'off'; fadeMusic(0.45, 1.5); return 'done'; }
       if (st.mode === 'warning') { st.warnT += dt; if (st.warnT > 0.8 && inp.any) { st.mode = 'menu'; return 'menu'; } }
       else if (st.mode === 'menu') {
         st.t += dt;
-        if (inp.up) st.menuSel = (st.menuSel + MENU.length - 1) % MENU.length;
-        if (inp.down) st.menuSel = (st.menuSel + 1) % MENU.length;
+        const MENU = curMenu();
+        if (inp.esc && st.sub) { st.sub = false; st.menuSel = 0; inp.ok = false; if (window.Sfx) Sfx.click(); }
+        if (inp.up) { st.menuSel = (st.menuSel + MENU.length - 1) % MENU.length; if (window.Sfx) Sfx.tick(); }
+        if (inp.down) { st.menuSel = (st.menuSel + 1) % MENU.length; if (window.Sfx) Sfx.tick(); }
         if (inp.click && inp.my != null) MENU.forEach((m, i) => { const y = 190 + i * 22; if (inp.my * H >= y - 6 && inp.my * H < y + 14 && inp.mx * W < 260) { st.menuSel = i; inp.ok = true; } });
         if (inp.ok) {
           const m = MENU[st.menuSel];
-          if (m === 'NOVO JOGO') { st.mode = 'story'; st.i = 0; st.t = 0; startMusic(); return 'story'; }
-          if (m === 'PULAR HISTORIA') { st.mode = 'off'; return 'skip'; }
+          if (window.Sfx) Sfx.click();
+          if (m === 'NOVO JOGO') { st.sub = true; st.menuSel = 0; return null; }
+          if (m === 'VOLTAR') { st.sub = false; st.menuSel = 0; return null; }
+          if (m === 'MODO HISTORIA') { st.sub = false; st.mode = 'story'; st.i = 0; st.t = 0; startMusic(); return 'story'; }
+          if (m === 'PULAR HISTORIA') { st.sub = false; st.mode = 'off'; return 'skip'; }
           if (m === 'CREDITOS') { st.mode = 'credits-menu'; st.creditsT = 0; return null; }
         }
       }
