@@ -2195,6 +2195,176 @@
   for (const id in PAINT) ASPR[id] = [0, 1].map(f => sprCanvas(SIZE[id][0], SIZE[id][1], PAINT[id](f)));
   const EYES = { jester: [[8, 7], [16, 7]], hootsy: [[9, 9], [15, 9]], raft: [[9, 11], [16, 11]], bongo: [[10, 9], [15, 9]], giggles: [[9, 6], [15, 6]], wobble: [[6, 6], [16, 6]], joly: [[15, 2]] };
   const EYEC = { jester: '#ffffff', hootsy: '#ffe060', raft: '#ffe8a0', bongo: '#ffd0a0', giggles: '#ff6a6a', wobble: '#ffe060', joly: '#ffffff' };
+  // ---------- animatrônicos em alta resolução (pintados e convertidos em pixel art) ----------
+  const HI = { jester: [120, 160], hootsy: [120, 160], raft: [128, 160], bongo: [120, 160], giggles: [120, 160], wobble: [128, 92], joly: [110, 184] };
+  const OUT_SMALL = { jester: [30, 40], hootsy: [30, 40], raft: [32, 40], bongo: [30, 40], giggles: [30, 40], wobble: [32, 23], joly: [27, 46] };
+  const EYE_HI = { jester: [[48, 47], [72, 47]], hootsy: [[45, 46], [75, 46]], raft: [[52, 62], [76, 62]], bongo: [[50, 46], [70, 46]], giggles: [[48, 40], [72, 40]], wobble: [[38, 18], [90, 18]], joly: [[66, 18]] };
+  function paintHi(id, f, q) {
+    const el = (x, y, rx, ry, col, rot = 0) => { q.fillStyle = col; q.beginPath(); q.ellipse(x, y, Math.abs(rx), Math.abs(ry), rot, 0, Math.PI * 2); q.fill(); };
+    const ball = (x, y, rx, ry, base, rot = 0) => { // esfera com luz de cima/esquerda
+      const [r, g, b] = hex(base), gr = q.createRadialGradient(x - rx * 0.35, y - ry * 0.4, 1, x, y, Math.max(rx, ry) * 1.15);
+      gr.addColorStop(0, `rgb(${Math.min(255, r * 1.35 + 20) | 0},${Math.min(255, g * 1.35 + 20) | 0},${Math.min(255, b * 1.35 + 20) | 0})`);
+      gr.addColorStop(0.55, base); gr.addColorStop(1, `rgb(${r * 0.5 | 0},${g * 0.5 | 0},${b * 0.5 | 0})`);
+      q.fillStyle = gr; q.beginPath(); q.ellipse(x, y, Math.abs(rx), Math.abs(ry), rot, 0, Math.PI * 2); q.fill();
+    };
+    const cap = (x0, y0, x1, y1, w, base) => { q.strokeStyle = base; q.lineWidth = w; q.lineCap = 'round'; q.beginPath(); q.moveTo(x0, y0); q.lineTo(x1, y1); q.stroke(); q.strokeStyle = 'rgba(255,255,255,0.18)'; q.lineWidth = w * 0.3; q.beginPath(); q.moveTo(x0 - w * 0.2, y0); q.lineTo(x1 - w * 0.2, y1); q.stroke(); };
+    const po = (pts, col) => { q.fillStyle = col; q.beginPath(); q.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) q.lineTo(pts[i], pts[i + 1]); q.closePath(); q.fill(); };
+    const eye = (x, y, r, iris, pup = 0.45, glint = true) => { el(x, y, r, r * 0.9, '#f4f0e6'); el(x + r * 0.08, y + r * 0.05, r * 0.62, r * 0.62, iris); el(x + r * 0.1, y + r * 0.08, r * pup, r * pup, '#0a0608'); if (glint) el(x - r * 0.18, y - r * 0.2, r * 0.18, r * 0.18, '#ffffff'); };
+    const fur = (x, y, w, h, col, n = 40) => { q.strokeStyle = col; q.lineWidth = 1.2; for (let i = 0; i < n; i++) { const a = x + ((i * 37) % w), b = y + ((i * 53) % h); q.beginPath(); q.moveTo(a, b); q.lineTo(a + 1.5, b + 3); q.stroke(); } };
+    const wear = (x, y, w, h) => { for (let i = 0; i < 10; i++) el(x + (i * 29) % w, y + (i * 41) % h, 2 + (i % 3), 1.5, 'rgba(40,30,30,0.35)'); };
+    const leg = (x, top, len, w, col, foot, sh = 0) => { cap(x, top, x + sh, top + len, w, col); el(x + sh, top + len * 0.5, w * 0.28, w * 0.28, '#6a6a72'); ball(x + sh + 2, top + len + 3, w * 0.75, w * 0.38, foot); };
+    const k = f ? 1 : 0;
+    if (id === 'jester') {
+      const G = '#8e8e9c', GL = '#c8c8d4';
+      leg(48, 112, 36, 15, G, '#6a6a78', k * 3); leg(72, 112, 36, 15, G, '#6a6a78', -k * 3);
+      ball(60, 98, 27, 30, G); ball(60, 104, 17, 21, GL); fur(38, 74, 44, 50, 'rgba(60,60,70,0.4)');
+      cap(34, 80, 26 + k * 2, 112, 11, G); ball(26 + k * 2, 114, 6, 6, GL); cap(86, 80, 92, 104, 11, G);
+      // guitarra
+      cap(84, 104, 22, 58, 5, '#7a4a22'); po([16, 52, 26, 50, 30, 60, 20, 62], '#3a2010');
+      for (let i = 0; i < 3; i++) { q.strokeStyle = '#e8e8e8'; q.lineWidth = 0.6; q.beginPath(); q.moveTo(84, 103 + i * 1.5); q.lineTo(24, 56 + i * 1.5); q.stroke(); }
+      ball(86, 110, 18, 13, '#c82a2a', -0.5); el(84, 108, 6, 5, '#1a1a1a'); po([76, 116, 96, 104, 98, 110, 80, 120], '#f0f0f0');
+      ball(94, 104, 6, 6, G);
+      // gravata
+      po([50, 70, 60, 76, 50, 82], '#c82020'); po([70, 70, 60, 76, 70, 82], '#c82020'); el(60, 76, 3, 3, '#801010');
+      // cabeça
+      ball(28, 26, 19, 19, G); ball(92, 26, 19, 19, G); el(28, 27, 11, 11, '#d89aaa'); el(92, 27, 11, 11, '#d89aaa');
+      for (let i = 0; i < 8; i++) { el(12 + (i % 2) * 2, 18 + i * 3, 2.5, 1.5, '#7a7a88'); el(108 - (i % 2) * 2, 18 + i * 3, 2.5, 1.5, '#7a7a88'); }
+      ball(60, 46, 32, 28, G); ball(60, 60, 17, 10, GL);
+      eye(48, 45, 7, '#3a6ab8'); eye(72, 45, 7, '#3a6ab8');
+      cap(41, 35, 54, 36, 3, '#4a4a56'); cap(66, 36, 79, 35, 3, '#4a4a56');
+      ball(60, 54, 10, 8, '#1a1a24'); el(57, 51, 3, 2, '#7a7a8a');
+      q.strokeStyle = '#3a2a2a'; q.lineWidth = 2; q.beginPath(); q.arc(60, 60, 8, 0.2, Math.PI - 0.2); q.stroke();
+      for (let i = 0; i < 4; i++) q.fillRect(55 + i * 3, 66, 2, 2);
+      wear(36, 30, 50, 30);
+    } else if (id === 'hootsy') {
+      const B = '#6e4628', BL = '#b4824e', FC = '#d8b07a';
+      po([44, 150, 40, 158, 48, 156, 52, 158, 50, 150], '#e08a2a'); po([76, 150, 72, 158, 80, 156, 84, 158, 82, 150], '#e08a2a');
+      ball(60, 102, 36, 50, B); ball(60, 112, 23, 34, BL);
+      for (let r = 0; r < 5; r++) for (let c = 0; c < 4; c++) { const x = 46 + c * 9 + (r % 2) * 4, y = 94 + r * 9; q.strokeStyle = '#7a4a24'; q.lineWidth = 1.5; q.beginPath(); q.moveTo(x - 3, y); q.lineTo(x, y + 3); q.lineTo(x + 3, y); q.stroke(); }
+      ball(24 - k * 2, 104, 10, 32, '#4a2e18', 0.15); ball(96 + k * 2, 104, 10, 32, '#4a2e18', -0.15);
+      for (let i = 0; i < 4; i++) { cap(20 - k * 2, 110 + i * 7, 26 - k * 2, 114 + i * 7, 2, '#3a2010'); }
+      po([26, 22, 34, 4, 42, 26], '#4a2e18'); po([94, 22, 86, 4, 78, 26], '#4a2e18');
+      ball(60, 48, 38, 34, B); ball(60, 50, 31, 26, FC);
+      for (let a = 0; a < 16; a++) { const ang = a / 16 * Math.PI * 2; q.strokeStyle = 'rgba(140,90,50,0.5)'; q.lineWidth = 1; q.beginPath(); q.moveTo(45 + Math.cos(ang) * 8, 46 + Math.sin(ang) * 8); q.lineTo(45 + Math.cos(ang) * 14, 46 + Math.sin(ang) * 14); q.stroke(); q.beginPath(); q.moveTo(75 + Math.cos(ang) * 8, 46 + Math.sin(ang) * 8); q.lineTo(75 + Math.cos(ang) * 14, 46 + Math.sin(ang) * 14); q.stroke(); }
+      eye(45, 46, 12, '#ffcc2a', 0.32); eye(75, 46, 12, '#ffcc2a', 0.32);
+      po([54, 58, 66, 58, 60, 72], '#e8922a'); po([56, 58, 62, 58, 59, 66], '#ffb85a');
+      po([46, 82, 60, 88, 46, 94], '#c82020'); po([74, 82, 60, 88, 74, 94], '#c82020'); ball(60, 88, 4, 4, '#a01010');
+      wear(40, 96, 40, 40);
+    } else if (id === 'raft') {
+      const Y = '#e8c040', YD = '#b8902a', W = '#fff6e0';
+      ball(104, 120, 14, 22, Y, -0.6); ball(110, 134, 9, 9, W);
+      leg(52, 118, 32, 13, YD, '#5a4020', k * 3); leg(76, 118, 32, 13, YD, '#5a4020', -k * 3);
+      ball(64, 104, 25, 26, '#3a5ac8'); po([52, 80, 76, 80, 70, 120, 58, 120], '#5a7ae8');
+      for (const [x, y] of [[50, 92], [76, 100], [58, 116], [80, 86], [46, 108]]) { po([x, y - 4, x + 1.5, y - 1, x + 4.5, y - 1, x + 2, y + 1, x + 3, y + 4.5, x, y + 2.5, x - 3, y + 4.5, x - 2, y + 1, x - 4.5, y - 1, x - 1.5, y - 1], '#ffe060'); }
+      cap(42, 86, 34, 112, 10, Y); ball(34, 114, 6, 6, Y);
+      cap(86, 86, 96, 70, 10, Y); cap(96, 70, 98, 50, 3, '#8a8a92'); ball(98, 46, 7, 8, '#2a2a30'); for (let i = 0; i < 3; i++) cap(92, 43 + i * 3, 104, 43 + i * 3, 0.8, '#5a5a62'); ball(96, 72, 6, 6, Y);
+      // orelhas enormes
+      po([22, 54, 30, 2, 52, 40], Y); po([28, 50, 32, 12, 46, 40], '#f4c8b0');
+      po([106, 54, 98, 2, 76, 40], Y); po([100, 50, 96, 12, 82, 40], '#f4c8b0');
+      ball(64, 58, 28, 24, Y); ball(64, 70, 15, 10, W); el(46, 72, 8, 5, W); el(82, 72, 8, 5, W);
+      eye(52, 60, 7, '#2a1a10', 0.5); eye(76, 60, 7, '#2a1a10', 0.5);
+      cap(46, 50, 56, 52, 2.5, YD); cap(72, 52, 82, 50, 2.5, YD);
+      ball(64, 68, 5, 4, '#1a1418'); q.strokeStyle = '#3a2010'; q.lineWidth = 1.5; q.beginPath(); q.moveTo(64, 72); q.lineTo(64, 76); q.arc(60, 76, 4, 0, Math.PI * 0.8); q.moveTo(64, 76); q.arc(68, 76, 4, Math.PI, Math.PI * 0.2, true); q.stroke();
+      wear(44, 44, 40, 30);
+    } else if (id === 'bongo') {
+      const B = '#6a3a1e', T = '#e2b282';
+      const up = f ? -6 : 0;
+      q.save(); q.translate(0, up);
+      leg(50, 122, 28 - (f ? 8 : 0), 13, B, T, 0); leg(70, 122, 28 - (f ? 8 : 0), 13, B, T, 0);
+      ball(60, 100, 25, 28, B); for (let i = 0; i < 6; i++) { q.fillStyle = i % 2 ? '#e8e0d0' : '#c83a3a'; q.fillRect(40 + i * 7, 80, 7, 36); }
+      q.fillStyle = 'rgba(0,0,0,0.25)'; q.fillRect(40, 80, 6, 36); for (let i = 0; i < 3; i++) el(60, 86 + i * 9, 2, 2, '#e8c040');
+      cap(32, 82, 22 + k * 4, 128, 10, B); cap(88, 82, 98 - k * 4, 128, 10, B); ball(22 + k * 4, 130, 6, 6, T); ball(98 - k * 4, 130, 6, 6, T);
+      for (const x of [44, 76]) { ball(x, 120, 15, 7, '#d8a060'); q.fillStyle = '#8a5428'; q.fillRect(x - 15, 120, 30, 14); q.fillStyle = '#b8783a'; q.fillRect(x - 15, 120, 30, 3); el(x, 120, 15, 6, '#f0d8b0'); for (let i = 0; i < 4; i++) cap(x - 12 + i * 8, 122, x - 12 + i * 8, 133, 1.5, '#c8a040'); }
+      cap(28, 112, 92, 112, 2, '#3a2010');
+      ball(20, 46, 9, 11, T); ball(100, 46, 9, 11, T);
+      ball(60, 44, 30, 28, B); el(51, 46, 12, 13, T); el(69, 46, 12, 13, T); ball(60, 58, 18, 13, T);
+      eye(51, 44, 6, '#3a2010', 0.55); eye(69, 44, 6, '#3a2010', 0.55);
+      el(56, 54, 2, 1.5, '#3a1a10'); el(64, 54, 2, 1.5, '#3a1a10');
+      q.strokeStyle = '#3a1a10'; q.lineWidth = 2; q.beginPath(); q.arc(60, 60, 9, 0.25, Math.PI - 0.25); q.stroke();
+      ball(60, 18, 22, 7, '#1a1a20'); q.fillStyle = '#1a1a20'; q.fillRect(44, 4, 32, 14); el(60, 4, 16, 4, '#2a2a30'); q.fillStyle = '#c83a3a'; q.fillRect(44, 12, 32, 3);
+      wear(40, 30, 40, 40);
+      q.restore();
+    } else if (id === 'giggles') {
+      ball(36, 152, 14, 6, '#d02020'); ball(84, 152, 14, 6, '#d02020');
+      leg(48, 116, 32, 12, '#3a6ac8', '#d02020', k * 3); leg(72, 116, 32, 12, '#3a6ac8', '#d02020', -k * 3);
+      ball(60, 98, 28, 28, '#ffd23a'); for (const [x, y, c] of [[48, 88, '#d02020'], [70, 96, '#3a8aff'], [56, 110, '#5ac83a'], [74, 114, '#d02020'], [44, 104, '#3a8aff']]) el(x, y, 4, 4, c);
+      cap(34, 84, 26, 110, 10, '#ffd23a'); ball(26, 112, 6, 6, '#f0f0f0');
+      cap(86, 84, 96, 66, 10, '#ffd23a'); ball(96, 64, 6, 6, '#f0f0f0'); po([96, 60, 112, 50, 112, 66], '#e8c030'); ball(115, 58, 6, 7, '#d02020');
+      for (let i = 0; i < 9; i++) ball(30 + i * 7.5, 72 + (i % 2) * 2, 6, 5, '#ffffff');
+      for (const [x, y, c] of [[22, 34, '#ff3a3a'], [16, 48, '#5aff7a'], [26, 22, '#ffd23a'], [98, 34, '#3a8aff'], [104, 48, '#ff7ad8'], [94, 22, '#ff9a3a']]) ball(x, y, 11, 11, c);
+      ball(60, 44, 28, 30, '#f4ece0');
+      po([46, 18, 74, 18, 62, -2], '#d02020'); for (let i = 0; i < 3; i++) po([48 + i * 4, 14 - i * 5, 72 - i * 4, 14 - i * 5, 70 - i * 4, 10 - i * 5, 50 + i * 4, 10 - i * 5], '#ffffff'); ball(62, -1, 3, 3, '#ffd23a');
+      po([48, 30, 54, 38, 48, 46, 42, 38], '#3a6ac8'); po([72, 30, 78, 38, 72, 46, 66, 38], '#3a6ac8');
+      eye(48, 39, 5, '#1a1418', 0.6); eye(72, 39, 5, '#1a1418', 0.6);
+      ball(60, 50, 7, 7, '#e81818');
+      q.fillStyle = '#d02020'; q.beginPath(); q.moveTo(38, 56); q.quadraticCurveTo(60, 80, 82, 56); q.quadraticCurveTo(60, 70, 38, 56); q.fill();
+      q.strokeStyle = '#8a1010'; q.lineWidth = 1; q.stroke();
+      wear(36, 24, 48, 40);
+    } else if (id === 'wobble') {
+      const G = '#4aa83a', GD = '#2a7a2a', C = '#ecf2c4';
+      if (f) { cap(30, 60, 12, 86, 10, GD); cap(98, 60, 116, 86, 10, GD); ball(10, 88, 9, 4, GD); ball(118, 88, 9, 4, GD); }
+      else { ball(22, 78, 18, 9, GD); ball(106, 78, 18, 9, GD); ball(14, 86, 10, 4, G); ball(114, 86, 10, 4, G); }
+      ball(64, 56 - (f ? 8 : 0), 48, 30, G); ball(64, 66 - (f ? 8 : 0), 30, 18, C);
+      for (let i = 0; i < 9; i++) el(30 + (i * 19) % 70, 36 + (i * 7) % 20 - (f ? 8 : 0), 3, 2, '#3a8a2a');
+      const ey = 18 - (f ? 8 : 0);
+      ball(38, ey + 4, 16, 15, G); ball(90, ey + 4, 16, 15, G);
+      el(38, ey, 11, 10, '#ffe060'); el(90, ey, 11, 10, '#ffe060'); el(38, ey, 8, 3, '#0a0608'); el(90, ey, 8, 3, '#0a0608'); el(35, ey - 4, 2.5, 2, '#ffffff'); el(87, ey - 4, 2.5, 2, '#ffffff');
+      q.strokeStyle = '#1a3a1a'; q.lineWidth = 2.5; q.beginPath(); q.moveTo(26, 54 - (f ? 8 : 0)); q.quadraticCurveTo(64, 70 - (f ? 8 : 0), 102, 54 - (f ? 8 : 0)); q.stroke();
+      el(30, 58 - (f ? 8 : 0), 6, 4, '#e86a6a'); el(98, 58 - (f ? 8 : 0), 6, 4, '#e86a6a');
+      po([54, 74 - (f ? 8 : 0), 64, 80 - (f ? 8 : 0), 54, 86 - (f ? 8 : 0)], '#c83a3a'); po([74, 74 - (f ? 8 : 0), 64, 80 - (f ? 8 : 0), 74, 86 - (f ? 8 : 0)], '#c83a3a');
+    } else if (id === 'joly') {
+      const P = '#ff7ab8', PD = '#d8508a', L = '#e88aa8';
+      cap(46, 112, 44, 178, 4, L); el(45, 146, 4, 4, '#6a6a72');
+      if (f) { cap(58, 112, 70, 140, 4, L); cap(70, 140, 58, 150, 4, L); } else { cap(58, 112, 60, 178, 4, L); el(59, 146, 4, 4, '#6a6a72'); }
+      po([36, 178, 52, 178, 46, 182], '#c84a7a'); if (!f) po([52, 178, 68, 178, 62, 182], '#c84a7a');
+      ball(52, 96, 30, 22, P, -0.15); ball(40, 96, 20, 14, PD, -0.3);
+      for (let i = 0; i < 5; i++) po([20 + i * 6, 100 + i, 30 + i * 6, 92 + i, 26 + i * 6, 108 + i], '#b83a6a');
+      q.strokeStyle = P; q.lineWidth = 9; q.lineCap = 'round'; q.beginPath(); q.moveTo(74, 86); q.bezierCurveTo(96, 70, 52, 52, 66, 26); q.stroke();
+      q.strokeStyle = 'rgba(255,255,255,0.25)'; q.lineWidth = 3; q.beginPath(); q.moveTo(72, 84); q.bezierCurveTo(92, 70, 50, 52, 63, 26); q.stroke();
+      ball(68, 18, 13, 12, P); eye(68, 16, 5, '#ffcc2a', 0.45);
+      po([78, 16, 100, 22, 98, 30, 80, 26], '#f4ece8'); po([94, 22, 104, 26, 100, 38, 96, 30], '#1a1418');
+      cap(72, 4, 70, 0, 3, '#ff9ac8');
+      po([40, 116, 64, 116, 52, 124], '#c82020');
+    }
+  }
+  function quantizeSprite(c, n) {
+    const q = c.getContext('2d'), id = q.getImageData(0, 0, c.width, c.height), d = id.data, px = [];
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 128) { d[i + 3] = 0; continue; } d[i + 3] = 255; px.push([d[i], d[i + 1], d[i + 2]]); }
+    let boxes = [px];
+    while (boxes.length < n) {
+      let bi = -1, best = 0, ch = 0;
+      boxes.forEach((b, i) => { if (b.length < 2) return; for (let k = 0; k < 3; k++) { let mn = 255, mx = 0; for (const p of b) { if (p[k] < mn) mn = p[k]; if (p[k] > mx) mx = p[k]; } if (mx - mn > best) { best = mx - mn; bi = i; ch = k; } } });
+      if (bi < 0) break;
+      const b = boxes[bi].sort((a, z) => a[ch] - z[ch]), m = b.length >> 1; boxes.splice(bi, 1, b.slice(0, m), b.slice(m));
+    }
+    const pal = boxes.filter(b => b.length).map(b => { const s = [0, 0, 0]; for (const p of b) { s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; } return s.map(v => v / b.length | 0); });
+    for (let i = 0; i < d.length; i += 4) { if (!d[i + 3]) continue; let bi = 0, bd = 1e9; for (let k = 0; k < pal.length; k++) { const p = pal[k], dd = (p[0] - d[i]) ** 2 + (p[1] - d[i + 1]) ** 2 + (p[2] - d[i + 2]) ** 2; if (dd < bd) { bd = dd; bi = k; } } d[i] = pal[bi][0]; d[i + 1] = pal[bi][1]; d[i + 2] = pal[bi][2]; }
+    q.putImageData(id, 0, 0);
+  }
+  function hiSprite(id, f, ow, oh, colors) {
+    const [hw, hh] = HI[id], big = document.createElement('canvas'); big.width = hw; big.height = hh;
+    paintHi(id, f, big.getContext('2d'));
+    // redução em etapas (melhor qualidade)
+    let src = big; while (src.width / 2 >= ow * 1.5) { const t = document.createElement('canvas'); t.width = Math.round(src.width / 2); t.height = Math.round(src.height / 2); const tq = t.getContext('2d'); tq.imageSmoothingEnabled = true; tq.imageSmoothingQuality = 'high'; tq.drawImage(src, 0, 0, t.width, t.height); src = t; }
+    const out = document.createElement('canvas'); out.width = ow + 2; out.height = oh + 2; const oq = out.getContext('2d', { willReadFrequently: true });
+    oq.imageSmoothingEnabled = true; oq.imageSmoothingQuality = 'high'; oq.drawImage(src, 1, 1, ow, oh);
+    quantizeSprite(out, colors);
+    const d = oq.getImageData(0, 0, out.width, out.height), px = d.data, o = new Uint8ClampedArray(px);
+    for (let y = 0; y < out.height; y++) for (let x = 0; x < out.width; x++) {
+      const i = (y * out.width + x) * 4; if (px[i + 3]) continue;
+      const n = (a, b) => a >= 0 && b >= 0 && a < out.width && b < out.height && px[(b * out.width + a) * 4 + 3] > 0;
+      if (n(x - 1, y) || n(x + 1, y) || n(x, y - 1) || n(x, y + 1)) { o[i] = 16; o[i + 1] = 8; o[i + 2] = 20; o[i + 3] = 255; }
+    }
+    oq.putImageData(new ImageData(o, out.width, out.height), 0, 0);
+    return out;
+  }
+  const ABIG = {};
+  for (const id in HI) {
+    const [sw, sh] = OUT_SMALL[id];
+    ASPR[id] = [0, 1].map(f => hiSprite(id, f, sw, sh, 14));
+    ABIG[id] = [0, 1].map(f => hiSprite(id, f, Math.round(HI[id][0] / 2), Math.round(HI[id][1] / 2), 22));
+    EYES[id] = EYE_HI[id].map(([x, y]) => [Math.round(x * sw / HI[id][0]), Math.round(y * sh / HI[id][1])]);
+  }
 
   // piano da Hootsy
   const PIANO_SPR = sprCanvas(26, 18, (R) => {
@@ -2203,7 +2373,7 @@
     R(2, 16, 2, 2, '#1a1418'); R(22, 16, 2, 2, '#1a1418');
   });
 
-  window.AnimArt = { spr: ASPR, piano: PIANO_SPR, face: id => faceCanvas(id) };
+  window.AnimArt = { spr: ASPR, big: ABIG, piano: PIANO_SPR, face: id => faceCanvas(id) };
   // ---------- rosto grande do jumpscare (pintado e pixelizado) ----------
   const faceCache = {};
   function faceCanvas(id) {
@@ -2582,7 +2752,7 @@
   // para as câmeras 3D
   function animList3D() {
     if (!AI_ON) return [];
-    return anims.filter(a => a.id !== 'mousy').map(a => ({ id: a.id, x: a.x, y: a.y, img: ASPR[a.id][(a.moving || a.hop) ? Math.floor(game.t * 5) % 2 : 0], alpha: a.id === 'bongo' && !game.powered ? 0.15 : 1 }));
+    return anims.filter(a => a.id !== 'mousy').map(a => ({ id: a.id, x: a.x, y: a.y, scale: ASPR[a.id][0].height * 1.3 / ABIG[a.id][0].height, img: ABIG[a.id][(a.moving || a.hop) ? Math.floor(game.t * 5) % 2 : 0], alpha: a.id === 'bongo' && !game.powered ? 0.15 : 1 }));
   }
 
   // ---------- relógio, jumpscare, game over e 6 AM ----------

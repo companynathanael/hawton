@@ -260,7 +260,7 @@ window.Cam3D = {
         const tx = texCache.get(a.img) || (() => { const t = texOf(a.img); texCache.set(a.img, t); return t; })();
         m.material.map = tx; m.material.emissiveMap = tx; m.material.needsUpdate = true; m.userData.img = a.img;
       }
-      const sc = 1.55, w = a.img.width * sc, hh = a.img.height * sc;
+      const sc = a.scale || 1.55, w = a.img.width * sc, hh = a.img.height * sc;
       m.scale.set(w, hh, 1); m.position.set(a.x, hh / 2, a.y);
       m.rotation.y = Math.atan2(s.cam.position.x - a.x, s.cam.position.z - a.y);
       m.material.opacity = a.alpha; m.material.transparent = true; m.visible = a.alpha > 0.05;

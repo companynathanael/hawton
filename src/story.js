@@ -281,13 +281,13 @@ window.Story = (() => {
         }
         // a banda (sprites do jogo, ampliados)
         if (art) {
-          const S = 4, bob = k => Math.round(Math.abs(Math.sin(t * 4 + k)) * 4);
+          const S = art.big ? 2 : 4, bob = k => Math.round(Math.abs(Math.sin(t * 4 + k)) * 4), SP = art.big || art.spr;
           const put = (img, x, y, k) => { c.imageSmoothingEnabled = false; c.drawImage(img, x - img.width * S / 2, y - img.height * S - bob(k), img.width * S, img.height * S); };
           c.imageSmoothingEnabled = false; c.drawImage(art.piano, 140, 236 - 18 * 3, 26 * 3, 18 * 3);
-          put(art.spr.hootsy[Math.floor(t * 3) % 2], 210, 236, 0);
-          put(art.spr.raft[Math.floor(t * 4) % 2], 320, 236, 1);
-          put(art.spr.jester[Math.floor(t * 5) % 2], 430, 236, 2);
-          put(art.spr.bongo[Math.floor(t * 6) % 2], 520, 236, 3);
+          put(SP.hootsy[Math.floor(t * 3) % 2], 210, 236, 0);
+          put(SP.raft[Math.floor(t * 4) % 2], 320, 236, 1);
+          put(SP.jester[Math.floor(t * 5) % 2], 430, 236, 2);
+          put(SP.bongo[Math.floor(t * 6) % 2], 520, 236, 3);
           c.imageSmoothingEnabled = true;
           // notas musicais
           for (let i = 0; i < 6; i++) { const k = (t * 0.5 + i / 6) % 1; c.globalAlpha = 1 - k; c.fillStyle = ['#ffe060', '#ff7ad8', '#7aeaff'][i % 3]; const x = 200 + i * 60 + Math.sin(k * 6 + i) * 12, y = 150 - k * 110; c.fillRect(x, y, 5, 4); c.fillRect(x + 4, y - 12, 2, 13); c.fillRect(x + 4, y - 12, 6, 2); c.globalAlpha = 1; }
@@ -517,8 +517,8 @@ window.Story = (() => {
         c.fillStyle = '#4a0a18'; for (let x = 0; x < W; x += 24) c.fillRect(x, 0, 12, 230);
         c.fillStyle = '#5a3418'; c.fillRect(0, 230, W, 26);
         if (art) {
-          const S = 4; c.imageSmoothingEnabled = false;
-          [['hootsy', 120], ['raft', 230], ['jester', 340], ['joly', 450], ['giggles', 540]].forEach(([id, x]) => { const im = art.spr[id][0]; c.drawImage(im, x - im.width * S / 2, 232 - im.height * S, im.width * S, im.height * S); });
+          const S = art.big ? 2 : 4, SP = art.big || art.spr; c.imageSmoothingEnabled = false;
+          [['hootsy', 120], ['raft', 230], ['jester', 340], ['joly', 450], ['giggles', 540]].forEach(([id, x]) => { const im = SP[id][0]; c.drawImage(im, x - im.width * S / 2, 232 - im.height * S, im.width * S, im.height * S); });
           c.imageSmoothingEnabled = true;
         }
         glow(c, bx, 200, 110, '#fff0c8', 0.35);
